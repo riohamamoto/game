@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <title>Google Dinosaur Clone</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f7f7f7;
+            font-family: monospace;
+            overflow: hidden;
+        }
+        #gameCanvas {
+            border-bottom: 2px solid #535353;
+            background-color: white;
+        }
+        #instructions {
+            position: absolute;
+            top: 20%;
+            text-align: center;
+            color: #535353;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="instructions">
+        <h1>Dino Runner</h1>
+        <p>按 [空白鍵] 跳躍</p>
+        <p>得分: <span id="scoreText">0</span> | 最高分: <span id="highScoreText">0</span></p>
+    </div>
+    <canvas id="gameCanvas" width="800" height="200"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// 遊戲變數
+let score = 0;
+let highScore = 0;
+let gameSpeed = 5;
+let isGameOver = false;
+let animationId;
+let frames = 0;
+
+// 恐龍對象
+const dino = {
+    x: 50,
+    y: 150,
+    width: 40,
+    height: 40,
+    dy: 0,
+    jumpForce: 12,
+    originalHeight: 40,
+    grounded: false,
+    color: '#535353',
+    draw: function() {
+        ctx.fillStyle = this.color;
+        // 簡單繪製恐龍 (矩形)
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        // 畫眼睛
+        ctx.fillStyle = "white";
+        ctx.fillRect(this.x + 25, this.y + 5, 5, 5);
+    },
+    jump: function() {
+        if (this.grounded) {
+            this.dy = -this.jumpForce;
+            this.grounded = false;
+        }
+    },
+    update: function() {
+        // 重力
+        this.y += this.dy;
+        
+        // 如果在空中，施加重力
+        if (this.y < 150) {
+            this.dy += 0.6; // 重力加速度
+            this.grounded = false;
+        } else {
+            this.y = 150;
+            this.dy = 0;
+            this.grounded = true;
+        }
+        this.draw();
+    }
+};
+
+// 障礙物管理
+const obstacles = [];
+class Obstacle {
+    constructor() {
+        this.w = 20 + Math.random() * 20; // 隨機寬度
+        this.h = 30 + Math.random() * 20; // 隨機高度
+        this.x = canvas.width;
+        this.y = 190 - this.h; // 地面高度 - 障礙物高度
+        this.color = '#535353';
+    }
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.fillRect(this.x, this.y, this.w, this.h);
+    }
+    update() {
+        this.x -= gameSpeed;
+        this.draw();
+    }
+}
+
+// 產生障礙物
+function spawnObstacle() {
+    // 根據遊戲速度動態調整生成頻率
+    if (frames % Math.floor(Math.random() * 50 + 80) === 0) {
+        obstacles.push(new Obstacle());
+    }
+}
+
+// 開始遊戲
+function start() {
+    // 重置
+    isGameOver = false;
+    score = 0;
+    gameSpeed = 5;
+    obstacles.length = 0;
+    dino.y = 150;
+    dino.dy = 0;
+    frames = 0;
+    
+    update();
+}
+
+// 遊戲主循環
+function update() {
+    if (isGameOver) return;
+    
+    requestAnimationFrame(update);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 增加難度
+    frames++;
+    score++;
+    if (frames % 500 === 0) gameSpeed += 0.5;
+
+    // 更新 UI
+    document.getElementById('scoreText').innerText = Math.floor(score / 10);
+    
+    // 恐龍
+    dino.update();
+    
+    // 障礙物邏輯
+    spawnObstacle();
+    
+    for (let i = 0; i < obstacles.length; i++) {
+        let obs = obstacles[i];
+        obs.update();
+        
+        // 移除超出屏幕的障礙物
+        if (obs.x + obs.w < 0) {
+            obstacles.splice(i, 1);
+            i--;
+        }
+        
+        // 碰撞檢測 (AABB)
+        if (
+            dino.x < obs.x + obs.w &&
+            dino.x + dino.width > obs.x &&
+            dino.y < obs.y + obs.h &&
+            dino.y + dino.height > obs.y
+        ) {
+            gameOver();
+        }
+    }
+}
+
+function gameOver() {
+    isGameOver = true;
+    ctx.fillStyle = "black";
+    ctx.font = "30px monospace";
+    ctx.fillText("Game Over", canvas.width/2 - 80, canvas.height/2);
+    ctx.font = "20px monospace";
+    ctx.fillText("按空白鍵重新開始", canvas.width/2 - 100, canvas.height/2 + 40);
+    
+    if (Math.floor(score/10) > highScore) {
+        highScore = Math.floor(score/10);
+        document.getElementById('highScoreText').innerText = highScore;
+    }
+}
+
+// 輸入監聽
+window.addEventListener('keydown', function(e) {
+    if (e.code === 'Space') {
+        if (isGameOver) {
+            start();
+        } else {
+            dino.jump();
+        }
+    }
+});
+
+// 支持點擊跳躍
+window.addEventListener('touchstart', function() {
+    if (isGameOver) {
+        start();
+    } else {
+        dino.jump();
+    }
+});
+
+// 啟動
+start();
+
+</script>
+</body>
+</html>
