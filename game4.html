@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Graveyard Shooter - Press E to Pickup</title>
+    <title>Graveyard Shooter - Score & Pickup Fix</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Arial Black', sans-serif; background-color: #000; user-select: none; }
         
@@ -15,6 +15,7 @@
         }
         #instructions { font-size: 30px; cursor: pointer; text-align: center; text-shadow: 0 0 10px #ff0000; }
         
+        /* 準心 */
         #crosshair {
             position: absolute; top: 50%; left: 50%;
             width: 24px; height: 24px;
@@ -32,15 +33,18 @@
             transform: translate(-50%, -50%); border-radius: 50%;
         }
 
+        /* 底部 HUD 儀表板 */
         #hud {
             position: absolute; bottom: 20px; left: 50%;
             transform: translateX(-50%);
-            display: flex; align-items: flex-end; gap: 20px;
+            display: flex; align-items: flex-end; justify-content: space-between;
+            width: 90%; max-width: 1000px;
             pointer-events: none;
-            width: 80%; max-width: 800px;
         }
 
-        .hud-group { flex: 1; }
+        .hud-left, .hud-right, .hud-center { flex: 1; }
+        
+        /* 血量 (左) */
         #hp-label { color: #ff3333; font-size: 20px; margin-bottom: 5px; text-shadow: 2px 2px 0 #000; }
         #hp-bar-bg {
             width: 100%; height: 20px;
@@ -53,23 +57,37 @@
             transition: width 0.2s;
         }
 
-        #ammo-container { text-align: right; color: #ffff00; text-shadow: 2px 2px 0 #000; }
+        /* 分數 (中) */
+        .hud-center { text-align: center; }
+        #score-container { 
+            color: #ffffff; font-size: 40px; 
+            text-shadow: 0 0 10px #00ffff;
+            background: rgba(0,0,0,0.5);
+            padding: 5px 20px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+        #score-label { font-size: 14px; color: #aaa; letter-spacing: 2px; display: block; }
+
+        /* 彈藥 (右) */
+        .hud-right { text-align: right; color: #ffff00; text-shadow: 2px 2px 0 #000; }
         #ammo-count { font-size: 50px; line-height: 1; }
         #ammo-reserve { font-size: 24px; color: #aaaa00; }
         #weapon-name { font-size: 14px; color: #888; margin-top: 5px; text-transform: uppercase; letter-spacing: 2px;}
 
+        /* 提示訊息 */
         #reload-msg {
             position: absolute; top: 60%; left: 50%; transform: translateX(-50%);
             color: yellow; font-size: 20px; display: none;
             animation: blink 1s infinite;
         }
         
-        /* 新增：拾取提示 UI */
         #pickup-msg {
-            position: absolute; top: 55%; left: 50%; transform: translateX(-50%);
+            position: absolute; top: 53%; left: 50%; transform: translateX(-50%);
             color: #00ffff; font-size: 24px; display: none;
-            text-shadow: 0 0 5px black;
-            font-weight: bold;
+            text-shadow: 0 0 5px #000, 0 0 10px #00ffff;
+            font-weight: bold; padding: 10px;
+            background: rgba(0,0,0,0.5); border-radius: 8px;
         }
 
         @keyframes blink { 50% { opacity: 0; } }
@@ -90,14 +108,23 @@
 <body>
     
     <div id="reload-msg">按 'R' 換彈</div>
-    <div id="pickup-msg">按 [E] 拾取</div> <div id="crosshair"></div>
+    <div id="pickup-msg">按 [E] 拾取</div>
+    <div id="crosshair"></div>
     
     <div id="hud">
-        <div class="hud-group">
+        <div class="hud-left">
             <div id="hp-label">HP <span id="hp-text">100</span>%</div>
             <div id="hp-bar-bg"><div id="hp-bar-fill"></div></div>
         </div>
-        <div class="hud-group" id="ammo-container">
+        
+        <div class="hud-center">
+            <div id="score-container">
+                <span id="score-label">SCORE</span>
+                <span id="score-val">0</span>
+            </div>
+        </div>
+
+        <div class="hud-right" id="ammo-container">
             <div><span id="ammo-count">12</span> / <span id="ammo-reserve">36</span></div>
             <div id="weapon-name">標準手槍</div>
         </div>
@@ -105,10 +132,10 @@
     
     <div id="blocker">
         <div id="instructions">
-            <p style="font-size:50px; letter-spacing: 5px; color: red;">墳場獵殺</p>
-            <p>點擊開始</p>
-            <p>WASD 移動 | 空白鍵 跳躍 | 左鍵 射擊 | R 換彈</p>
-            <p style="font-size: 24px; color: yellow;">靠近物品按 <b>E</b> 拾取</p>
+            <h1 style="color:red; font-size:60px; margin:0;">墳場獵殺</h1>
+            <p>點擊畫面開始</p>
+            <p>WASD 移動 | 空白鍵 跳躍 | R 換彈 | <b>E 拾取</b></p>
+            <p style="color: #00ffff;">目標：盡可能獲得高分並生存下去</p>
         </div>
     </div>
 
@@ -129,7 +156,8 @@
             damage: 34, 
             isSuperWeapon: false,
             canShoot: true,
-            isReloading: false
+            isReloading: false,
+            score: 0
         };
 
         const velocity = new THREE.Vector3();
@@ -140,20 +168,20 @@
         let enemyUnits = []; 
         let dropItems = []; 
         let focusItem = null; // 當前注視的可拾取物品
-        
-        let score = 0;
         let lastShootTime = 0;
         let playerWeapon;
         
         let floorMaterial, stoneMaterial, woodMaterial, ammoMat, weaponDropMat;
 
+        // UI 元素
         const hpFill = document.getElementById('hp-bar-fill');
         const hpText = document.getElementById('hp-text');
         const ammoCountEl = document.getElementById('ammo-count');
         const ammoReserveEl = document.getElementById('ammo-reserve');
         const weaponNameEl = document.getElementById('weapon-name');
+        const scoreValEl = document.getElementById('score-val'); // 分數文字
         const reloadMsg = document.getElementById('reload-msg');
-        const pickupMsg = document.getElementById('pickup-msg'); // 拾取提示元素
+        const pickupMsg = document.getElementById('pickup-msg'); 
         const instructions = document.getElementById('instructions');
         const blocker = document.getElementById('blocker');
         const crosshair = document.getElementById('crosshair');
@@ -250,7 +278,7 @@
                 if(player.hp > 0) {
                     blocker.style.display = 'flex'; 
                     instructions.style.display = ''; 
-                    pickupMsg.style.display = 'none'; // 解鎖鼠標時隱藏提示
+                    pickupMsg.style.display = 'none'; 
                 }
             });
             scene.add(controls.getObject());
@@ -292,11 +320,14 @@
             updateUI();
         }
 
+        // --- 核心邏輯 ---
+
         function updateUI() {
             hpText.innerText = Math.floor(player.hp);
             hpFill.style.width = Math.max(0, player.hp) + '%';
             ammoCountEl.innerText = player.ammo;
             ammoReserveEl.innerText = player.reserveAmmo;
+            scoreValEl.innerText = player.score; // 更新分數
             
             if (player.ammo <= 3) ammoCountEl.style.color = 'red';
             else ammoCountEl.style.color = '#ffff00';
@@ -306,6 +337,18 @@
             } else {
                 reloadMsg.style.display = 'none';
             }
+        }
+
+        function addScore(amount) {
+            player.score += amount;
+            // 分數跳動效果
+            scoreValEl.style.color = '#00ff00';
+            scoreValEl.style.fontSize = '50px';
+            setTimeout(() => {
+                scoreValEl.style.color = 'white';
+                scoreValEl.style.fontSize = '40px';
+            }, 100);
+            updateUI();
         }
 
         function reloadWeapon() {
@@ -426,7 +469,7 @@
             const rand = Math.random();
             let type = null;
             
-            if (rand < 0.1) { // 提高一點點機率測試
+            if (rand < 0.1) {
                 type = 'weapon';
             } else if (rand < 0.5) { 
                 type = 'ammo';
@@ -451,17 +494,14 @@
             dropItems.push(mesh);
         }
 
-        // --- E 鍵拾取邏輯 ---
+        // --- 拾取系統 (已修復範圍問題) ---
         function tryPickup() {
             if (focusItem) {
-                // 執行拾取
                 const index = dropItems.indexOf(focusItem);
                 if (index > -1) {
                     pickupItemAction(focusItem);
-                    // 移除場景物件
                     scene.remove(focusItem);
                     dropItems.splice(index, 1);
-                    // 重置狀態
                     focusItem = null;
                     pickupMsg.style.display = 'none';
                 }
@@ -472,6 +512,7 @@
             if (item.userData.type === 'ammo') {
                 const amount = 12 + Math.floor(Math.random() * 12);
                 player.reserveAmmo += amount;
+                addScore(50); // 撿彈藥加分
                 createFloatingText("彈藥 +"+amount, item.position, '#00ff00');
             } else if (item.userData.type === 'weapon') {
                 if (!player.isSuperWeapon) {
@@ -485,9 +526,11 @@
                     const bar = playerWeapon.getObjectByName("glowBar");
                     if(bar) bar.material.color.setHex(0xff0000); 
 
-                    createFloatingText("獲得超級武器!", item.position, '#ffff00');
+                    addScore(500); // 撿武器加分
+                    createFloatingText("超級武器! (+500分)", item.position, '#ffff00');
                 } else {
                     player.reserveAmmo += 20;
+                    addScore(50);
                     createFloatingText("轉為彈藥 +20", item.position, '#ffff00');
                 }
             }
@@ -535,7 +578,7 @@
                 case 'KeyD': moveRight = true; break;
                 case 'Space': if (canJump === true) velocity.y += 250; canJump = false; break;
                 case 'KeyR': reloadWeapon(); break;
-                case 'KeyE': tryPickup(); break; // 新增 E 鍵
+                case 'KeyE': tryPickup(); break; 
             }
         }
         function onKeyUp(event) {
@@ -621,7 +664,7 @@
 
             scene.remove(unit.group);
             enemyUnits.splice(index, 1);
-            score++;
+            addScore(100); // 殺敵加分
             
             const pGeo = new THREE.BufferGeometry();
             const pCount = 20;
@@ -655,37 +698,37 @@
                     
                     if (player.hp <= 0) {
                         controls.unlock();
-                        instructions.innerHTML = `<h1 style="color:red">死亡</h1><p>得分: ${score}</p><p>點擊刷新重試</p>`;
+                        instructions.innerHTML = `<h1 style="color:red">死亡</h1><p>最終得分: <span style="color:yellow; font-size:40px">${player.score}</span></p><p>點擊刷新重試</p>`;
                         instructions.onclick = () => location.reload();
                     }
                 }
                 unit.group.position.y = 2 + Math.sin(time * 3 + unit.floatOffset) * 1.5;
             });
 
-            // --- 掉落物更新與距離檢測 ---
-            let closestDist = 6; // 檢測範圍 (稍大於拾取距離)
+            // --- 掉落物更新與距離檢測 (已修復判定) ---
+            let closestDist = 20; // 將距離放寬到 20 單位
             let closestItem = null;
 
             dropItems.forEach((item) => {
-                // 旋轉動畫
                 item.rotation.y += delta * (item.userData.rotateSpeed || 1);
                 item.position.y = 3 + Math.sin(time * 2) * 0.5;
 
-                // 計算距離
-                const dist = playerPos.distanceTo(item.position);
+                // 忽略高度差，主要計算水平距離
+                const dx = playerPos.x - item.position.x;
+                const dz = playerPos.z - item.position.z;
+                const dist2D = Math.sqrt(dx*dx + dz*dz); 
                 
-                // 找出最近的物品
-                if (dist < closestDist) {
-                    closestDist = dist;
-                    closestItem = item;
+                if (dist2D < 10) { // 只要水平距離小於 10 就允許拾取
+                    if (dist2D < closestDist) {
+                        closestDist = dist2D;
+                        closestItem = item;
+                    }
                 }
             });
 
-            // 更新拾取狀態 UI
             if (closestItem) {
                 focusItem = closestItem;
                 pickupMsg.style.display = 'block';
-                // 根據類型顯示不同文字
                 const typeName = closestItem.userData.label || "物品";
                 pickupMsg.innerText = `按 [E] 拾取 ${typeName}`;
             } else {
