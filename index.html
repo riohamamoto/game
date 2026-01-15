@@ -3,425 +3,401 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的遊戲館 | NEXT LEVEL</title>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Press+Start+2P&family=Orbitron:wght@500;900&display=swap" rel="stylesheet">
+    <title>GAME PORTAL | SYSTEM OVERRIDE</title>
+    <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <style>
-        /* --- 全局設定 --- */
+        /* --- [全局變數] --- */
         :root {
-            --primary-color: #00f2ff; /* 霓虹藍 */
-            --secondary-color: #ff0055; /* 霓虹粉 */
-            --accent-color: #ffe600; /* 亮黃色 (用於強調) */
-            --bg-color: #0f0c29;
-            --card-bg: rgba(255, 255, 255, 0.03);
-            --card-border: rgba(255, 255, 255, 0.1);
+            --neon-blue: #00f3ff;
+            --neon-pink: #ff00ff;
+            --horror-red: #8a0000;
+            --horror-black: #050000;
+            --text-glow: 0 0 10px rgba(0, 243, 255, 0.7);
         }
 
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
         body {
-            font-family: 'Noto Sans TC', sans-serif;
-            background-color: var(--bg-color);
-            color: white;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            overflow-x: hidden;
-            position: relative;
+            background: #000;
+            color: #fff;
+            font-family: 'Share Tech Mono', monospace;
+            overflow: hidden; /* 防止滾動，增強沈浸感 */
+            height: 100vh;
+            width: 100vw;
         }
 
-        /* --- 背景層設計 --- */
+        /* --- [背景特效層] --- */
         #canvas-bg {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -2;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0;
+            transition: filter 1s ease;
         }
 
-        /* 增加網格背景，增加科技感 */
-        .grid-overlay {
+        /* 掃描線特效 (頁面1專用) */
+        .scanlines {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-image: 
-                linear-gradient(rgba(0, 242, 255, 0.1) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 242, 255, 0.1) 1px, transparent 1px);
-            background-size: 50px 50px;
-            background-position: center bottom;
-            perspective: 500px;
-            transform: scale(1.2);
-            z-index: -1;
-            mask-image: linear-gradient(to bottom, transparent 20%, black 100%);
-            -webkit-mask-image: linear-gradient(to bottom, transparent 20%, black 100%);
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.2));
+            background-size: 100% 4px;
+            z-index: 10;
+            pointer-events: none;
+            opacity: 0.6;
         }
 
-        /* --- 標題區域 --- */
-        header {
-            text-align: center;
-            margin-top: 50px;
-            margin-bottom: 40px;
-            z-index: 1;
-            position: relative;
+        /* 恐怖雜訊覆蓋 (頁面2專用) */
+        .noise-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj48ZmlsdGVyIGlkPSJnoiPjxmZVR1cmJ1bGVuY2UgdHlwZT0iZnJhY3RhbE5vaXNlIiBiYXNlRnJlcXVlbmN5PSIwLjY1IiBudW1PY3RhdmVzPSIzIiBzdGl0Y2hUaWxlcz0ic3RpdGNoIi8+PC9maWx0ZXI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsdGVyPSJ1cmwoI2cpIiBvcGFjaXR5PSIwLjEiLz48L3N2Zz4=');
+            z-index: 9;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1s;
         }
 
-        h1 {
-            font-family: 'Press Start 2P', cursive;
-            font-size: 3rem;
-            color: white;
-            text-transform: uppercase;
-            position: relative;
-            display: inline-block;
-            text-shadow: 2px 2px var(--secondary-color), -2px -2px var(--primary-color);
-        }
-
-        /* 標題故障特效動畫 */
-        h1::after {
-            content: "ARCADE ZONE";
+        /* --- [頁面切換容器] --- */
+        .page-section {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: var(--bg-color);
-            color: var(--primary-color);
-            overflow: hidden;
-            animation: glitch 2s infinite linear alternate-reverse;
-            opacity: 0.7;
-            clip-path: inset(0 0 0 0);
-        }
-
-        @keyframes glitch {
-            0% { clip-path: inset(10% 0 80% 0); transform: translate(-2px, 2px); }
-            20% { clip-path: inset(80% 0 10% 0); transform: translate(2px, -2px); }
-            40% { clip-path: inset(40% 0 50% 0); transform: translate(-2px, 0); }
-            60% { clip-path: inset(0 0 0 0); transform: translate(0, 0); }
-            100% { clip-path: inset(60% 0 20% 0); transform: translate(2px, 2px); }
-        }
-
-        p.subtitle {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 1rem;
-            color: #ccc;
-            letter-spacing: 4px;
-            margin-top: 10px;
-            text-transform: uppercase;
-        }
-
-        /* --- 遊戲列表區域 (Grid 佈局) --- */
-        .games-container {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr); /* 三列佈局 */
-            gap: 25px;
-            max-width: 1200px;
-            width: 95%;
-            padding-bottom: 50px;
-            z-index: 1;
-        }
-
-        /* --- 通用卡片設計 --- */
-        .game-card {
-            background: var(--card-bg);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border: 1px solid var(--card-border);
-            border-radius: 15px;
-            padding: 30px;
-            text-align: center;
-            text-decoration: none;
-            color: white;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            justify-content: center;
+            transition: transform 0.8s cubic-bezier(0.7, 0, 0.3, 1), opacity 0.8s;
+            z-index: 20;
         }
 
-        .game-card:hover {
-            transform: translateY(-10px);
-            border-color: var(--primary-color);
-            box-shadow: 0 0 25px rgba(0, 242, 255, 0.3);
-            background: rgba(255, 255, 255, 0.08);
+        /* 頁面隱藏狀態 */
+        .hidden-left { transform: translateX(-150%) scale(0.8); opacity: 0; pointer-events: none; }
+        .hidden-right { transform: translateX(150%) scale(0.8); opacity: 0; pointer-events: none; }
+        
+        /* --- [PAGE 1: ARCADE COMPLEX] --- */
+        #page-arcade {
+            background: radial-gradient(circle at center, rgba(10, 20, 40, 0.4), #000);
         }
 
-        /* --- 🌟 重點強調：Featured 卡片 (3D射擊遊戲) --- */
-        .game-card.featured {
-            grid-column: span 3; /* 橫跨三列 */
-            flex-direction: row; /* 改為橫向排列 */
-            text-align: left;
-            padding: 50px;
-            background: linear-gradient(135deg, rgba(255, 0, 85, 0.1), rgba(15, 12, 41, 0.9));
-            border: 2px solid var(--secondary-color); /* 強烈的粉色邊框 */
-            box-shadow: 0 0 30px rgba(255, 0, 85, 0.4);
-            animation: pulse-border 2s infinite;
-        }
-
-        @keyframes pulse-border {
-            0% { box-shadow: 0 0 20px rgba(255, 0, 85, 0.3); }
-            50% { box-shadow: 0 0 40px rgba(255, 0, 85, 0.6); border-color: #ff4d88; }
-            100% { box-shadow: 0 0 20px rgba(255, 0, 85, 0.3); }
-        }
-
-        .game-card.featured:hover {
-            transform: scale(1.02); /* 微微放大，但不位移太多 */
-        }
-
-        /* Featured 卡片內部佈局 */
-        .featured-content {
-            flex: 1;
-            padding-left: 40px;
-            z-index: 2;
-        }
-
-        .featured-icon {
-            font-size: 6rem;
-            flex-shrink: 0;
-            animation: float 3s ease-in-out infinite;
-            filter: drop-shadow(0 0 20px rgba(255,0,85,0.8));
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-15px); }
-        }
-
-        /* Badge 標籤 */
-        .badge {
+        /* 裝飾性 HUD 邊框 */
+        .hud-border {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            background: var(--accent-color);
-            color: black;
-            padding: 5px 15px;
-            font-weight: bold;
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.8rem;
-            transform: rotate(5deg);
-            box-shadow: 0 0 10px var(--accent-color);
-            z-index: 10;
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            width: 95%; height: 95%;
+            pointer-events: none;
         }
-
-        /* --- 卡片元素 --- */
-        .icon-box {
-            font-size: 3.5rem;
-            margin-bottom: 15px;
-            transition: transform 0.3s;
-        }
-
-        .game-card:not(.featured):hover .icon-box {
-            transform: scale(1.2) rotate(-10deg);
-        }
-
-        .game-title {
-            font-family: 'Orbitron', sans-serif;
-            font-size: 1.4rem;
-            font-weight: 700;
-            margin-bottom: 10px;
-            display: block;
-            color: white;
-        }
-
-        .featured .game-title {
-            font-size: 2.5rem; /* 標題放大 */
-            color: var(--secondary-color);
-            text-shadow: 0 0 10px rgba(255, 0, 85, 0.5);
-            margin-bottom: 15px;
-        }
-
-        .game-desc {
-            font-size: 0.9rem;
-            color: #aaa;
-            margin-bottom: 20px;
-            line-height: 1.6;
-            display: block;
-        }
-
-        .featured .game-desc {
-            font-size: 1.1rem;
-            color: #ddd;
-            max-width: 600px;
-        }
-
-        /* 按鈕樣式 */
-        .play-btn {
-            display: inline-block;
-            padding: 10px 30px;
-            border-radius: 4px; /* 變得更方一點，更有科技感 */
-            background: transparent;
-            border: 1px solid var(--primary-color);
-            color: var(--primary-color);
-            font-family: 'Orbitron', sans-serif;
-            font-weight: bold;
-            font-size: 0.9rem;
-            text-transform: uppercase;
+        .hud-border::before, .hud-border::after {
+            content: ''; position: absolute; width: 20px; height: 20px;
+            border: 2px solid var(--neon-blue);
             transition: 0.3s;
+        }
+        .hud-border::before { top: 0; left: 0; border-right: none; border-bottom: none; }
+        .hud-border::after { bottom: 0; right: 0; border-left: none; border-top: none; }
+
+        .arcade-header h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 3.5rem;
+            text-shadow: 0 0 20px var(--neon-blue);
+            letter-spacing: 5px;
+            margin-bottom: 40px;
+        }
+
+        /* 3個小遊戲的容器 */
+        .arcade-grid {
+            display: flex;
+            gap: 30px;
+            perspective: 1000px;
+        }
+
+        .arcade-card {
+            width: 250px;
+            height: 320px;
+            background: rgba(0, 10, 30, 0.7);
+            border: 1px solid var(--neon-blue);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            color: var(--neon-blue);
+            position: relative;
+            transition: 0.4s;
+            backdrop-filter: blur(5px);
+            clip-path: polygon(10% 0, 100% 0, 100% 90%, 90% 100%, 0 100%, 0 10%);
+        }
+
+        .arcade-card:hover {
+            transform: translateZ(20px) scale(1.05);
+            background: rgba(0, 243, 255, 0.15);
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.4);
+        }
+
+        .arcade-icon { font-size: 4rem; margin-bottom: 20px; }
+        .arcade-title { font-size: 1.2rem; font-weight: bold; }
+
+        /* 特殊按鈕：進入恐怖區 */
+        .danger-btn-container {
+            margin-top: 60px;
+            position: relative;
+        }
+
+        .danger-btn {
+            background: transparent;
+            color: #ff0055;
+            border: 2px solid #ff0055;
+            padding: 15px 40px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 900;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
             position: relative;
             overflow: hidden;
-            letter-spacing: 1px;
+            transition: 0.3s;
+            clip-path: polygon(10% 0, 100% 0, 100% 80%, 90% 100%, 0 100%, 0 20%);
         }
 
-        .play-btn::before {
-            content: '';
+        .danger-btn::before {
+            content: "⚠️ WARNING ⚠️";
             position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: var(--primary-color);
-            transition: 0.4s;
-            z-index: -1;
+            top: -100%; left: 0; width: 100%; height: 100%;
+            background: #ff0055;
+            color: black;
+            display: flex; justify-content: center; align-items: center;
+            transition: 0.3s;
         }
 
-        .game-card:hover .play-btn {
-            color: #000;
-            box-shadow: 0 0 20px var(--primary-color);
+        .danger-btn:hover::before { top: 0; }
+        .danger-btn:hover { box-shadow: 0 0 30px #ff0055; }
+
+        /* --- [PAGE 2: HORROR ZONE] --- */
+        #page-horror {
+            /* 初始狀態由 JS 控制 hidden */
         }
 
-        .game-card:hover .play-btn::before {
-            left: 0;
+        /* 恐怖標題 */
+        .horror-title {
+            font-family: 'Creepster', cursive;
+            font-size: 5rem;
+            color: #ff0000;
+            text-shadow: 4px 4px 0px #000, 0 0 20px #8a0000;
+            animation: text-flicker 3s infinite;
+            margin-bottom: 20px;
         }
 
-        /* Featured 按鈕特別樣式 */
-        .featured .play-btn {
-            background: var(--secondary-color);
-            border-color: var(--secondary-color);
-            color: white;
+        @keyframes text-flicker {
+            0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 1; text-shadow: 4px 4px 0px #000, 0 0 20px #8a0000; }
+            20%, 24%, 55% { opacity: 0.5; text-shadow: none; }
+        }
+
+        /* 恐怖射擊遊戲主卡片 */
+        .shooter-card {
+            width: 600px;
+            height: 400px;
+            background: linear-gradient(180deg, rgba(20,0,0,0.9), rgba(0,0,0,1));
+            border: 2px solid #550000;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 50px rgba(138, 0, 0, 0.5);
+            animation: card-breath 4s infinite ease-in-out;
+        }
+
+        @keyframes card-breath {
+            0%, 100% { box-shadow: 0 0 50px rgba(138, 0, 0, 0.5); border-color: #550000; }
+            50% { box-shadow: 0 0 100px rgba(255, 0, 0, 0.8); border-color: #ff0000; }
+        }
+
+        .shooter-icon { font-size: 6rem; margin-bottom: 10px; filter: drop-shadow(0 0 10px red); }
+        .shooter-desc { color: #aaa; text-align: center; max-width: 80%; line-height: 1.5; margin-bottom: 30px; font-family: 'Creepster', cursive; letter-spacing: 1px;}
+        
+        .play-horror-btn {
             padding: 15px 50px;
-            font-size: 1.1rem;
-            box-shadow: 0 0 20px rgba(255, 0, 85, 0.4);
+            background: #8a0000;
+            color: white;
+            font-family: 'Creepster', cursive;
+            font-size: 2rem;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            transition: 0.2s;
+            border: 1px solid red;
         }
 
-        .featured:hover .play-btn {
-            background: white;
-            color: var(--secondary-color);
-            box-shadow: 0 0 30px white;
+        .play-horror-btn:hover {
+            background: red;
+            transform: scale(1.1);
+            box-shadow: 0 0 30px red;
         }
 
-        /* --- 響應式調整 --- */
-        @media (max-width: 900px) {
-            .games-container {
-                grid-template-columns: repeat(2, 1fr); /* 平板改為兩列 */
-            }
-            .game-card.featured {
-                grid-column: span 2;
-            }
+        /* 幽靈特效 */
+        .ghost {
+            position: absolute;
+            font-size: 3rem;
+            opacity: 0.3;
+            pointer-events: none;
+            animation: ghost-float 5s infinite linear;
+            filter: blur(2px);
         }
 
-        @media (max-width: 600px) {
-            .games-container {
-                display: flex;
-                flex-direction: column; /* 手機改為垂直排列 */
-            }
-            .game-card.featured {
-                flex-direction: column;
-                text-align: center;
-                padding: 30px;
-            }
-            .featured-content {
-                padding-left: 0;
-                margin-top: 20px;
-            }
-            h1 { font-size: 1.8rem; }
+        @keyframes ghost-float {
+            0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
+            50% { opacity: 0.6; }
+            100% { transform: translateY(-100px) translateX(50px) rotate(20deg); opacity: 0; }
+        }
+
+        /* 返回按鈕 */
+        .back-btn {
+            position: absolute;
+            bottom: 30px;
+            color: #555;
+            cursor: pointer;
+            border: 1px solid #333;
+            padding: 10px 20px;
+            background: black;
+            transition: 0.3s;
+        }
+        .back-btn:hover { color: white; border-color: white; }
+
+        /* 響應式 */
+        @media (max-width: 768px) {
+            .arcade-grid { flex-direction: column; }
+            .shooter-card { width: 90%; height: auto; padding: 20px; }
+            .horror-title { font-size: 3rem; }
         }
     </style>
 </head>
 <body>
 
     <canvas id="canvas-bg"></canvas>
-    <div class="grid-overlay"></div>
+    
+    <div class="scanlines"></div>
+    <div class="noise-overlay" id="noise"></div>
 
-    <header>
-        <h1>ARCADE ZONE</h1>
-        <p class="subtitle">READY PLAYER ONE?</p>
-    </header>
-
-    <div class="games-container">
+    <section id="page-arcade" class="page-section">
+        <div class="hud-border"></div>
         
-        <a href="game4.html" class="game-card featured">
-            <div class="badge">RECOMMENDED</div>
-            <div class="featured-icon">🔫</div>
-            <div class="featured-content">
-                <span class="game-title">3D 幽靈射擊</span>
-                <span class="game-desc">
-                    >> SYSTEM ALERT: GHOST DETECTED << <br>
-                    體驗次世代 3D 射擊快感！在無盡的黑暗中擊退幽靈，生存是唯一的目標。支援高幀率與立體音效。
-                </span>
-                <span class="play-btn">ENTER MISSION</span>
-            </div>
-        </a>
+        <header class="arcade-header">
+            <h1>ARCADE_CORE_V.1</h1>
+        </header>
 
-        <a href="game1.html" class="game-card">
-            <div class="icon-box">🧱</div>
-            <span class="game-title">俄羅斯方塊</span>
-            <span class="game-desc">經典消除遊戲，考驗你的反應與邏輯。</span>
-            <span class="play-btn">START</span>
-        </a>
+        <div class="arcade-grid">
+            <a href="game1.html" class="arcade-card">
+                <div class="arcade-icon">🧱</div>
+                <span class="arcade-title">TETRIS // 俄羅斯方塊</span>
+            </a>
+            <a href="game2.html" class="arcade-card">
+                <div class="arcade-icon">🦖</div>
+                <span class="arcade-title">DINO_RUN // 恐龍快跑</span>
+            </a>
+            <a href="game3.html" class="arcade-card">
+                <div class="arcade-icon">🔢</div>
+                <span class="arcade-title">2048 // 數據合成</span>
+            </a>
+        </div>
 
-        <a href="game2.html" class="game-card">
-            <div class="icon-box">🦖</div>
-            <span class="game-title">Dino Run</span>
-            <span class="game-desc">Google 經典離線小恐龍，盡情奔跑吧！</span>
-            <span class="play-btn">START</span>
-        </a>
+        <div class="danger-btn-container">
+            <button class="danger-btn" onclick="switchToHorror()">ACCESS: DARK_ZONE</button>
+        </div>
+        
+        <div style="position:absolute; top:20px; left:20px; color:rgba(0,243,255,0.5); font-size:0.8rem;">
+            SYS.STATUS: NORMAL<br>CPU: 42%<br>MEM: 1024TB
+        </div>
+    </section>
 
-        <a href="game3.html" class="game-card">
-            <div class="icon-box">🔢</div>
-            <span class="game-title">2048</span>
-            <span class="game-desc">數字合成益智挑戰，你能達到 2048 嗎？</span>
-            <span class="play-btn">START</span>
-        </a>
+    <section id="page-horror" class="page-section hidden-right">
+        
+        <div class="ghost" style="top: 20%; left: 20%; animation-duration: 6s;">👻</div>
+        <div class="ghost" style="top: 70%; left: 80%; animation-duration: 8s; animation-delay: 1s;">👻</div>
+        <div class="ghost" style="top: 50%; left: 10%; animation-duration: 5s; animation-delay: 2s; font-size: 5rem;">💀</div>
 
-    </div>
+        <h1 class="horror-title">THE HAUNTED ZONE</h1>
+
+        <div class="shooter-card">
+            <div class="shooter-icon">🔫</div>
+            <h2 style="font-size: 2rem; color: #ff3333; margin-bottom: 10px;">3D GHOST HUNTER</h2>
+            <p class="shooter-desc">
+                偵測到高能反應...<br>
+                它們在黑暗中看著你。<br>
+                拿起你的武器，不要回頭。
+            </p>
+            <a href="game4.html" class="play-horror-btn">ENTER NIGHTMARE</a>
+        </div>
+
+        <button class="back-btn" onclick="switchToArcade()">return to safety</button>
+    </section>
 
     <script>
+        // --- 核心變數 ---
         const canvas = document.getElementById('canvas-bg');
         const ctx = canvas.getContext('2d');
+        const noiseLayer = document.getElementById('noise');
+        
+        // 頁面元素
+        const pageArcade = document.getElementById('page-arcade');
+        const pageHorror = document.getElementById('page-horror');
 
-        let particlesArray;
+        // 主題狀態 ('arcade' 或 'horror')
+        let currentTheme = 'arcade';
+        let particlesArray = [];
 
-        // 設定 Canvas 大小
+        // --- Canvas 初始化 ---
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
         }
         window.addEventListener('resize', () => {
             resizeCanvas();
-            init();
+            initParticles();
         });
         resizeCanvas();
 
-        // 粒子類別
+        // --- 粒子系統 (雙模式) ---
         class Particle {
             constructor() {
+                this.reset();
+            }
+
+            reset() {
                 this.x = Math.random() * canvas.width;
                 this.y = Math.random() * canvas.height;
-                this.size = Math.random() * 2;
-                this.speedX = (Math.random() * 1.5 - 0.75); // 稍微加快一點速度
-                this.speedY = (Math.random() * 1.5 - 0.75);
-                this.color = Math.random() > 0.5 ? '#00f2ff' : '#ff0055';
-                this.opacity = Math.random() * 0.5 + 0.1;
+                this.size = Math.random() * 2 + 0.5;
+                
+                if (currentTheme === 'arcade') {
+                    // 街機模式：快速、藍/粉色、幾何運動
+                    this.speedX = (Math.random() - 0.5) * 2;
+                    this.speedY = (Math.random() - 0.5) * 2;
+                    this.color = Math.random() > 0.5 ? '#00f3ff' : '#ff00ff';
+                    this.alpha = 1;
+                } else {
+                    // 恐怖模式：緩慢、向上飄的灰燼/血色、半透明
+                    this.speedX = (Math.random() - 0.5) * 0.5;
+                    this.speedY = Math.random() * -1 - 0.2; // 向上飄
+                    this.color = Math.random() > 0.8 ? '#ff0000' : '#555555';
+                    this.size = Math.random() * 3;
+                    this.alpha = Math.random() * 0.5 + 0.1;
+                }
             }
+
             update() {
                 this.x += this.speedX;
                 this.y += this.speedY;
 
-                if (this.x > canvas.width) this.x = 0;
-                if (this.x < 0) this.x = canvas.width;
-                if (this.y > canvas.height) this.y = 0;
-                if (this.y < 0) this.y = canvas.height;
+                // 邊界檢查與重置
+                if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
+                    this.reset();
+                    // 恐怖模式下，從底部重生，像灰燼
+                    if (currentTheme === 'horror') {
+                        this.y = canvas.height;
+                        this.x = Math.random() * canvas.width;
+                    }
+                }
             }
+
             draw() {
-                ctx.globalAlpha = this.opacity;
+                ctx.globalAlpha = this.alpha;
                 ctx.fillStyle = this.color;
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
@@ -430,20 +406,24 @@
             }
         }
 
-        function init() {
+        function initParticles() {
             particlesArray = [];
-            let numberOfParticles = (canvas.height * canvas.width) / 10000;
-            for (let i = 0; i < numberOfParticles; i++) {
+            let count = (canvas.width * canvas.height) / 9000;
+            for (let i = 0; i < count; i++) {
                 particlesArray.push(new Particle());
             }
         }
 
         function animate() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            // 讓背景稍微暗一點，凸顯前景
-            ctx.fillStyle = 'rgba(15, 12, 41, 0.2)'; 
-            ctx.fillRect(0,0, canvas.width, canvas.height);
+            // 清除畫布時，根據主題改變拖影效果
+            if (currentTheme === 'arcade') {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'; // 輕微拖影
+            } else {
+                ctx.fillStyle = 'rgba(5, 0, 0, 0.2)'; // 恐怖模式下背景帶點紅黑
+            }
             
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
             for (let i = 0; i < particlesArray.length; i++) {
                 particlesArray[i].update();
                 particlesArray[i].draw();
@@ -451,8 +431,41 @@
             requestAnimationFrame(animate);
         }
 
-        init();
+        // --- 頁面切換邏輯 ---
+        function switchToHorror() {
+            currentTheme = 'horror';
+            
+            // 1. 動畫切換頁面
+            pageArcade.classList.add('hidden-left');
+            pageHorror.classList.remove('hidden-right');
+
+            // 2. 改變氛圍
+            noiseLayer.style.opacity = '0.4'; // 開啟雜訊
+            document.querySelector('.scanlines').style.opacity = '0.1'; // 減弱掃描線
+
+            // 3. 重置粒子為恐怖模式
+            initParticles();
+        }
+
+        function switchToArcade() {
+            currentTheme = 'arcade';
+
+            // 1. 動畫切換頁面
+            pageHorror.classList.add('hidden-right');
+            pageArcade.classList.remove('hidden-left');
+
+            // 2. 恢復氛圍
+            noiseLayer.style.opacity = '0'; // 關閉雜訊
+            document.querySelector('.scanlines').style.opacity = '0.6';
+
+            // 3. 重置粒子為街機模式
+            initParticles();
+        }
+
+        // 啟動
+        initParticles();
         animate();
+
     </script>
 </body>
 </html>
