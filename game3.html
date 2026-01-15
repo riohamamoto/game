@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <title>2048 Game</title>
+    <style>
+        body {
+            background-color: #faf8ef;
+            color: #776e65;
+            font-family: "Clear Sans", "Helvetica Neue", Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        h1 {
+            font-size: 60px;
+            margin: 0;
+            color: #776e65;
+        }
+
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            width: 320px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .score-container {
+            background: #bbada0;
+            padding: 5px 15px;
+            border-radius: 5px;
+            color: white;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .score-label { font-size: 12px; display: block; }
+        .score-val { font-size: 20px; }
+
+        #game-board {
+            width: 320px;
+            height: 320px;
+            background-color: #bbada0;
+            border-radius: 10px;
+            position: relative;
+            padding: 10px;
+            box-sizing: border-box;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(4, 1fr);
+            gap: 10px;
+        }
+
+        .cell {
+            background-color: #cdc1b4;
+            border-radius: 5px;
+            width: 100%;
+            height: 100%;
+        }
+
+        .tile {
+            position: absolute;
+            width: 65px;
+            height: 65px;
+            border-radius: 5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 30px;
+            transition: all 0.15s ease-in-out;
+            animation: pop 0.2s;
+        }
+
+        @keyframes pop {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        /* Tile Colors */
+        .tile-2 { background: #eee4da; color: #776e65; }
+        .tile-4 { background: #ede0c8; color: #776e65; }
+        .tile-8 { background: #f2b179; color: #f9f6f2; }
+        .tile-16 { background: #f59563; color: #f9f6f2; }
+        .tile-32 { background: #f67c5f; color: #f9f6f2; }
+        .tile-64 { background: #f65e3b; color: #f9f6f2; }
+        .tile-128 { background: #edcf72; color: #f9f6f2; font-size: 24px; }
+        .tile-256 { background: #edcc61; color: #f9f6f2; font-size: 24px; }
+        .tile-512 { background: #edc850; color: #f9f6f2; font-size: 24px; }
+        .tile-1024 { background: #edc53f; color: #f9f6f2; font-size: 18px; }
+        .tile-2048 { background: #edc22e; color: #f9f6f2; font-size: 18px; }
+
+        #game-over {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(238, 228, 218, 0.73);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            font-size: 40px;
+            font-weight: bold;
+            color: #776e65;
+            display: none;
+            border-radius: 10px;
+            z-index: 100;
+        }
+
+        button {
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: #8f7a66;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-container">
+        <h1>2048</h1>
+        <div class="score-container">
+            <span class="score-label">SCORE</span>
+            <span id="score">0</span>
+        </div>
+    </div>
+
+    <div id="game-board">
+        <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+        <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+        <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+        <div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+        
+        <div id="game-over">
+            <p>Game Over!</p>
+            <button onclick="initGame()">Try Again</button>
+        </div>
+    </div>
+
+    <p style="margin-top: 20px;">使用方向鍵移動方塊</p>
+
+<script>
+    const boardSize = 4;
+    let grid = [];
+    let score = 0;
+    const gameBoard = document.getElementById('game-board');
+    const scoreEl = document.getElementById('score');
+    const gameOverEl = document.getElementById('game-over');
+
+    // 初始化遊戲
+    function initGame() {
+        grid = Array(boardSize).fill().map(() => Array(boardSize).fill(0));
+        score = 0;
+        scoreEl.innerText = score;
+        gameOverEl.style.display = 'none';
+        
+        // 移除所有舊的 tile div
+        const tiles = document.querySelectorAll('.tile');
+        tiles.forEach(t => t.remove());
+
+        spawnTile();
+        spawnTile();
+        updateBoardView();
+    }
+
+    // 在隨機位置生成數字
+    function spawnTile() {
+        let emptyCells = [];
+        for (let r = 0; r < boardSize; r++) {
+            for (let c = 0; c < boardSize; c++) {
+                if (grid[r][c] === 0) emptyCells.push({r, c});
+            }
+        }
+
+        if (emptyCells.length > 0) {
+            let rand = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+            grid[rand.r][rand.c] = Math.random() < 0.9 ? 2 : 4;
+        }
+    }
+
+    // 更新畫面
+    function updateBoardView() {
+        // 清除現有 DOM tile，重新繪製 (簡單實現)
+        const oldTiles = document.querySelectorAll('.tile');
+        oldTiles.forEach(t => t.remove());
+
+        for (let r = 0; r < boardSize; r++) {
+            for (let c = 0; c < boardSize; c++) {
+                if (grid[r][c] !== 0) {
+                    let tile = document.createElement('div');
+                    tile.classList.add('tile');
+                    tile.classList.add(`tile-${grid[r][c]}`);
+                    tile.innerText = grid[r][c];
+                    
+                    // 計算位置 (10px gap + 65px size)
+                    let top = 10 + r * (65 + 10);
+                    let left = 10 + c * (65 + 10);
+                    
+                    tile.style.top = top + 'px';
+                    tile.style.left = left + 'px';
+                    gameBoard.appendChild(tile);
+                }
+            }
+        }
+    }
+
+    // 遊戲核心邏輯：移動
+    function move(direction) {
+        let rotated = false;
+        let moved = false;
+
+        // 1. 旋轉矩陣，統一簡化為"向左移動"的邏輯
+        if (direction === 'ArrowRight') { grid = rotateGrid(grid); grid = rotateGrid(grid); rotated = true; }
+        else if (direction === 'ArrowUp') { grid = rotateGrid(grid); grid = rotateGrid(grid); grid = rotateGrid(grid); rotated = true; }
+        else if (direction === 'ArrowDown') { grid = rotateGrid(grid); rotated = true; }
+        
+        // 2. 處理每一行 (統一向左)
+        for (let r = 0; r < boardSize; r++) {
+            let row = grid[r].filter(val => val !== 0); // 移除 0
+            
+            // 合併
+            for (let i = 0; i < row.length - 1; i++) {
+                if (row[i] === row[i+1]) {
+                    row[i] *= 2;
+                    score += row[i];
+                    row[i+1] = 0;
+                }
+            }
+            row = row.filter(val => val !== 0); // 再次移除合併後產生的 0
+
+            // 補齊 0
+            while (row.length < boardSize) {
+                row.push(0);
+            }
+
+            // 檢查是否有變化
+            if (grid[r].join(',') !== row.join(',')) {
+                moved = true;
+            }
+            grid[r] = row;
+        }
+
+        // 3. 還原旋轉
+        if (rotated) {
+            if (direction === 'ArrowRight') { grid = rotateGrid(grid); grid = rotateGrid(grid); }
+            else if (direction === 'ArrowUp') { grid = rotateGrid(grid); }
+            else if (direction === 'ArrowDown') { grid = rotateGrid(grid); grid = rotateGrid(grid); grid = rotateGrid(grid); }
+        }
+
+        if (moved) {
+            spawnTile();
+            updateBoardView();
+            scoreEl.innerText = score;
+            checkGameOver();
+        }
+    }
+
+    // 輔助：旋轉矩陣 (順時針 90度)
+    function rotateGrid(matrix) {
+        return matrix[0].map((val, index) => matrix.map(row => row[index]).reverse());
+    }
+
+    // 檢查遊戲結束
+    function checkGameOver() {
+        // 還有空格嗎？
+        for(let r=0; r<boardSize; r++)
+            for(let c=0; c<boardSize; c++)
+                if(grid[r][c] === 0) return;
+
+        // 還能合併嗎？
+        for(let r=0; r<boardSize; r++) {
+            for(let c=0; c<boardSize; c++) {
+                if(c < boardSize-1 && grid[r][c] === grid[r][c+1]) return;
+                if(r < boardSize-1 && grid[r][c] === grid[r+1][c]) return;
+            }
+        }
+        
+        // 真的結束了
+        gameOverEl.style.display = 'flex';
+    }
+
+    // 鍵盤監聽
+    document.addEventListener('keydown', (e) => {
+        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+            e.preventDefault(); // 防止滾動頁面
+            move(e.key);
+        }
+    });
+
+    initGame();
+
+</script>
+</body>
+</html>
