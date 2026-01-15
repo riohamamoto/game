@@ -573,7 +573,7 @@
         function spawnDrop(pos) {
             // --- 平衡調整：掉落物邏輯 ---
             // 只有 15% 機率是武器 (變得很稀有)，85% 是彈藥
-            const isWeapon = Math.random() < 0.15; 
+            const isWeapon = Math.random() < 0.4; 
             const mesh = new THREE.Mesh(
                 isWeapon ? new THREE.BoxGeometry(1,1,3) : new THREE.BoxGeometry(2,2,2),
                 isWeapon ? weaponDropMat : ammoMat
@@ -664,7 +664,7 @@
                     player.score += 100;
                     // --- 平衡調整：掉落率 ---
                     // 30% 機率掉落東西 (之前是 50%)
-                    if(Math.random() < 0.3) spawnDrop(unit.group.position); 
+                    if(Math.random() < 0.5) spawnDrop(unit.group.position); 
                 }
                 scene.remove(unit.group); enemyUnits.splice(idx, 1);
                 checkBossSpawn(); updateUI();
