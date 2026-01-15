@@ -11,7 +11,8 @@
             --neon-blue: #00f3ff;
             --neon-pink: #ff00ff;
             --neon-yellow: #ffee00;
-            --horror-red: #8a0000;
+            --horror-red: #ff0000;
+            --alert-bg: rgba(20, 0, 0, 0.95);
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -26,10 +27,7 @@
         }
 
         /* --- [背景特效層] --- */
-        #canvas-bg {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 0; transition: filter 1s ease;
-        }
+        #canvas-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; transition: filter 1s ease; }
         .scanlines {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1));
@@ -51,147 +49,115 @@
         .hidden-right { transform: translateX(150%) scale(0.8); opacity: 0; pointer-events: none; }
         
         /* --- [PAGE 1: ARCADE COMPLEX] --- */
-        #page-arcade {
-            background: radial-gradient(circle at center, rgba(10, 20, 40, 0.4), #000);
-        }
-        .hud-border {
-            position: absolute; border: 1px solid rgba(0, 243, 255, 0.3); width: 95%; height: 95%; pointer-events: none;
-        }
-        .arcade-header h1 {
-            font-family: 'Orbitron', sans-serif; font-size: 3.5rem;
-            text-shadow: 0 0 20px var(--neon-blue); letter-spacing: 5px; margin-bottom: 40px;
-        }
+        #page-arcade { background: radial-gradient(circle at center, rgba(10, 20, 40, 0.4), #000); }
+        .hud-border { position: absolute; border: 1px solid rgba(0, 243, 255, 0.3); width: 95%; height: 95%; pointer-events: none; }
+        .arcade-header h1 { font-family: 'Orbitron', sans-serif; font-size: 3.5rem; text-shadow: 0 0 20px var(--neon-blue); letter-spacing: 5px; margin-bottom: 40px; }
 
-        /* --- 遊戲卡片佈局 --- */
-        .arcade-grid {
-            display: flex; gap: 40px; perspective: 1000px;
-        }
-
+        /* 遊戲卡片樣式 */
+        .arcade-grid { display: flex; gap: 40px; perspective: 1000px; }
         .arcade-card {
-            width: 260px; height: 350px;
-            background: rgba(0, 10, 30, 0.8);
-            border: 1px solid var(--neon-blue);
-            position: relative;
-            overflow: hidden; /* 重要：防止裝飾跑出去 */
-            display: flex; flex-direction: column; align-items: center; justify-content: flex-end; /* 內容靠下 */
-            padding-bottom: 30px;
-            text-decoration: none; color: white;
-            transition: 0.4s;
-            box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+            width: 260px; height: 350px; background: rgba(0, 10, 30, 0.8); border: 1px solid var(--neon-blue);
+            position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+            padding-bottom: 30px; text-decoration: none; color: white; transition: 0.4s; box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
         }
-
-        .arcade-card:hover {
-            transform: translateY(-15px) scale(1.02);
-            box-shadow: 0 0 30px rgba(0, 243, 255, 0.6);
-            border-color: white;
-        }
-
-        .card-content {
-            z-index: 5; text-align: center;
-        }
-
+        .arcade-card:hover { transform: translateY(-15px) scale(1.02); box-shadow: 0 0 30px rgba(0, 243, 255, 0.6); border-color: white; }
+        .card-content { z-index: 5; text-align: center; }
         .arcade-icon { font-size: 3rem; margin-bottom: 10px; display: block; }
         .arcade-title { font-family: 'Orbitron'; font-size: 1.2rem; font-weight: bold; color: var(--neon-blue); }
 
-        /* ================= 獨特裝飾元素 ================= */
-
-        /* 1. 俄羅斯方塊 (Tetris) - 方塊雨 */
-        .deco-tetris {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 1; opacity: 0.3;
-        }
-        .t-block {
-            position: absolute; width: 20px; height: 20px; background: var(--neon-pink);
-            top: -20px; animation: fall linear infinite;
-        }
+        /* 裝飾元素 */
+        .deco-tetris { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.3; }
+        .t-block { position: absolute; width: 20px; height: 20px; background: var(--neon-pink); top: -20px; animation: fall linear infinite; }
         .t-block:nth-child(1) { left: 20%; animation-duration: 3s; animation-delay: 0s; background: cyan; }
         .t-block:nth-child(2) { left: 50%; animation-duration: 2.5s; animation-delay: 1s; background: yellow; }
         .t-block:nth-child(3) { left: 80%; animation-duration: 3.5s; animation-delay: 0.5s; background: purple; }
-        
-        @keyframes fall {
-            0% { top: -20px; transform: rotate(0deg); }
-            100% { top: 350px; transform: rotate(90deg); }
-        }
+        @keyframes fall { 0% { top: -20px; transform: rotate(0deg); } 100% { top: 350px; transform: rotate(90deg); } }
 
-        /* 2. Dino Run - 滾動地面與雲 */
-        .deco-dino {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 1;
-        }
-        .pixel-ground {
-            position: absolute; bottom: 80px; left: 0; width: 200%; height: 2px;
-            background: repeating-linear-gradient(90deg, white 0, white 10px, transparent 10px, transparent 20px);
-            animation: scroll-ground 1s linear infinite;
-        }
-        .pixel-cactus {
-            position: absolute; bottom: 82px; right: -20px; font-size: 20px;
-            animation: move-cactus 2s linear infinite;
-        }
-        .pixel-cloud {
-            position: absolute; top: 30px; right: -30px; font-size: 20px; opacity: 0.5;
-            animation: move-cloud 6s linear infinite;
-        }
-
+        .deco-dino { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        .pixel-ground { position: absolute; bottom: 80px; left: 0; width: 200%; height: 2px; background: repeating-linear-gradient(90deg, white 0, white 10px, transparent 10px, transparent 20px); animation: scroll-ground 1s linear infinite; }
+        .pixel-cactus { position: absolute; bottom: 82px; right: -20px; font-size: 20px; animation: move-cactus 2s linear infinite; }
+        .pixel-cloud { position: absolute; top: 30px; right: -30px; font-size: 20px; opacity: 0.5; animation: move-cloud 6s linear infinite; }
         @keyframes scroll-ground { 100% { transform: translateX(-50%); } }
         @keyframes move-cactus { 0% { right: -20px; } 100% { right: 280px; } }
         @keyframes move-cloud { 0% { right: -30px; } 100% { right: 280px; } }
 
-        /* 3. 2048 - 網格與數字浮動 */
-        .deco-2048 {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 1;
-            background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px);
-            background-size: 40px 40px;
-        }
-        .float-num {
-            position: absolute; font-family: 'VT323', monospace; font-size: 1.5rem;
-            color: var(--neon-yellow); opacity: 0;
-            animation: pop-num 3s infinite;
-        }
+        .deco-2048 { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 40px 40px; }
+        .float-num { position: absolute; font-family: 'VT323', monospace; font-size: 1.5rem; color: var(--neon-yellow); opacity: 0; animation: pop-num 3s infinite; }
         .float-num:nth-child(1) { top: 30%; left: 20%; animation-delay: 0s; }
         .float-num:nth-child(2) { top: 60%; left: 70%; animation-delay: 1.5s; color: var(--neon-pink); }
         .float-num:nth-child(3) { top: 20%; left: 80%; animation-delay: 0.8s; }
+        @keyframes pop-num { 0% { transform: scale(0); opacity: 0; } 50% { transform: scale(1.2); opacity: 0.8; } 100% { transform: scale(1); opacity: 0; } }
 
-        @keyframes pop-num {
-            0% { transform: scale(0); opacity: 0; }
-            50% { transform: scale(1.2); opacity: 0.8; }
-            100% { transform: scale(1); opacity: 0; }
-        }
-
-        /* --- 特殊按鈕 --- */
+        /* 按鈕 */
         .danger-btn-container { margin-top: 60px; position: relative; z-index: 10; }
         .danger-btn {
             background: transparent; color: #ff0055; border: 2px solid #ff0055;
-            padding: 15px 40px; font-family: 'Orbitron', sans-serif; font-size: 1.2rem;
-            font-weight: 900; cursor: pointer; text-transform: uppercase; letter-spacing: 2px;
-            position: relative; overflow: hidden; transition: 0.3s;
-            clip-path: polygon(10% 0, 100% 0, 100% 80%, 90% 100%, 0 100%, 0 20%);
+            padding: 15px 40px; font-family: 'Orbitron', sans-serif; font-size: 1.2rem; font-weight: 900;
+            cursor: pointer; text-transform: uppercase; letter-spacing: 2px; position: relative; overflow: hidden;
+            transition: 0.3s; clip-path: polygon(10% 0, 100% 0, 100% 80%, 90% 100%, 0 100%, 0 20%);
         }
         .danger-btn:hover { background: rgba(255, 0, 85, 0.1); box-shadow: 0 0 30px #ff0055; }
 
-        /* --- [PAGE 2: HORROR ZONE] --- */
-        #page-horror {
-            /* 初始狀態由 JS 控制 hidden */
+        /* =================== 🌟 NEW: WARNING UI 樣式 =================== */
+        .warning-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none; transition: 0.4s ease;
         }
+        .warning-overlay.active { opacity: 1; pointer-events: auto; }
 
+        .warning-box {
+            width: 500px; padding: 40px;
+            background: linear-gradient(135deg, #1a0000 0%, #000000 100%);
+            border: 2px solid var(--horror-red);
+            box-shadow: 0 0 50px rgba(255, 0, 0, 0.3), inset 0 0 30px rgba(255,0,0,0.1);
+            text-align: center; position: relative;
+            transform: scale(0.8); transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .warning-overlay.active .warning-box { transform: scale(1); }
+
+        /* 警告框裝飾線條 */
+        .warning-box::before, .warning-box::after {
+            content: ''; position: absolute; width: 30px; height: 30px;
+            border: 3px solid var(--horror-red); transition: 0.3s;
+        }
+        .warning-box::before { top: -5px; left: -5px; border-right: none; border-bottom: none; }
+        .warning-box::after { bottom: -5px; right: -5px; border-left: none; border-top: none; }
+
+        .warning-icon { font-size: 4rem; color: var(--horror-red); animation: pulse-red 1s infinite; margin-bottom: 20px; }
+        @keyframes pulse-red { 0%, 100% { opacity: 1; text-shadow: 0 0 20px red; } 50% { opacity: 0.5; text-shadow: none; } }
+
+        .warning-title { font-family: 'Orbitron'; font-size: 2rem; color: var(--horror-red); margin-bottom: 10px; letter-spacing: 2px; }
+        .warning-text { font-family: 'Share Tech Mono'; color: #ccc; margin-bottom: 30px; line-height: 1.5; }
+
+        .warning-actions { display: flex; justify-content: center; gap: 20px; }
+        .btn-abort { padding: 10px 25px; border: 1px solid #555; background: transparent; color: #888; font-family: 'Orbitron'; cursor: pointer; transition: 0.3s; }
+        .btn-abort:hover { border-color: white; color: white; background: rgba(255,255,255,0.1); }
+        
+        .btn-proceed {
+            padding: 10px 30px; border: 1px solid var(--horror-red); background: rgba(255,0,0,0.1);
+            color: var(--horror-red); font-family: 'Orbitron'; font-weight: bold; cursor: pointer; transition: 0.3s;
+            position: relative; overflow: hidden;
+        }
+        .btn-proceed:hover { background: var(--horror-red); color: black; box-shadow: 0 0 30px var(--horror-red); }
+
+        /* =================== PAGE 2: HORROR ZONE =================== */
+        #page-horror { /* 初始狀態由 JS 控制 hidden */ }
         .horror-title {
             font-family: 'Creepster', cursive; font-size: 5rem; color: #ff0000;
-            text-shadow: 4px 4px 0px #000, 0 0 20px #8a0000; animation: text-flicker 3s infinite;
-            margin-bottom: 20px;
+            text-shadow: 4px 4px 0px #000, 0 0 20px #8a0000; animation: text-flicker 3s infinite; margin-bottom: 20px;
         }
         @keyframes text-flicker {
             0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 1; text-shadow: 4px 4px 0px #000, 0 0 20px #8a0000; }
             20%, 24%, 55% { opacity: 0.5; text-shadow: none; }
         }
-
         .shooter-card {
-            width: 600px; height: 400px;
-            background: linear-gradient(180deg, rgba(20,0,0,0.9), rgba(0,0,0,1));
-            border: 2px solid #550000; position: relative;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            box-shadow: 0 0 50px rgba(138, 0, 0, 0.5); animation: card-breath 4s infinite ease-in-out;
-            z-index: 10;
+            width: 600px; height: 400px; background: linear-gradient(180deg, rgba(20,0,0,0.9), rgba(0,0,0,1));
+            border: 2px solid #550000; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            box-shadow: 0 0 50px rgba(138, 0, 0, 0.5); animation: card-breath 4s infinite ease-in-out; z-index: 10;
         }
         @keyframes card-breath {
             0%, 100% { box-shadow: 0 0 50px rgba(138, 0, 0, 0.5); border-color: #550000; }
@@ -200,21 +166,18 @@
         .shooter-icon { font-size: 6rem; margin-bottom: 10px; filter: drop-shadow(0 0 10px red); }
         .shooter-desc { color: #aaa; text-align: center; max-width: 80%; line-height: 1.5; margin-bottom: 30px; font-family: 'Creepster', cursive; letter-spacing: 1px;}
         .play-horror-btn {
-            padding: 15px 50px; background: #8a0000; color: white;
-            font-family: 'Creepster', cursive; font-size: 2rem; border: 1px solid red; cursor: pointer; text-decoration: none; transition: 0.2s;
+            padding: 15px 50px; background: #8a0000; color: white; font-family: 'Creepster', cursive; font-size: 2rem;
+            border: 1px solid red; cursor: pointer; text-decoration: none; transition: 0.2s;
         }
         .play-horror-btn:hover { background: red; transform: scale(1.1); box-shadow: 0 0 30px red; }
-
         .ghost {
-            position: absolute; font-size: 3rem; opacity: 0.3; pointer-events: none;
-            animation: ghost-float 5s infinite linear; filter: blur(2px);
+            position: absolute; font-size: 3rem; opacity: 0.3; pointer-events: none; animation: ghost-float 5s infinite linear; filter: blur(2px);
         }
         @keyframes ghost-float {
             0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 0; }
             50% { opacity: 0.6; }
             100% { transform: translateY(-100px) translateX(50px) rotate(20deg); opacity: 0; }
         }
-
         .back-btn {
             position: absolute; bottom: 30px; color: #555; cursor: pointer; border: 1px solid #333; padding: 10px 20px; background: black; transition: 0.3s; z-index: 10;
         }
@@ -224,6 +187,7 @@
             .arcade-grid { flex-direction: column; }
             .shooter-card { width: 90%; height: auto; padding: 20px; }
             .horror-title { font-size: 3rem; }
+            .warning-box { width: 90%; }
         }
     </style>
 </head>
@@ -232,45 +196,47 @@
     <div class="scanlines"></div>
     <div class="noise-overlay" id="noise"></div>
 
+    <div class="warning-overlay" id="warningModal">
+        <div class="warning-box">
+            <div class="warning-icon">⚠️</div>
+            <h2 class="warning-title">SECURITY ALERT</h2>
+            <p class="warning-text">
+                >> DETECTED ACCESS TO RESTRICTED ZONE <<<br>
+                此區域含有高強度視覺刺激與未知的幽靈實體。<br>
+                系統無法保證您的精神穩定。<br>
+                <br>
+                是否強制覆寫安全協議？
+            </p>
+            <div class="warning-actions">
+                <button class="btn-abort" onclick="closeWarning()">ABORT</button>
+                <button class="btn-proceed" onclick="confirmSwitch()">OVERRIDE</button>
+            </div>
+        </div>
+    </div>
+
     <section id="page-arcade" class="page-section">
         <div class="hud-border"></div>
-        
         <header class="arcade-header">
             <h1>ARCADE_CORE_V.1</h1>
         </header>
 
         <div class="arcade-grid">
-            
             <a href="game1.html" class="arcade-card">
-                <div class="deco-tetris">
-                    <div class="t-block"></div>
-                    <div class="t-block"></div>
-                    <div class="t-block"></div>
-                </div>
+                <div class="deco-tetris"><div class="t-block"></div><div class="t-block"></div><div class="t-block"></div></div>
                 <div class="card-content">
                     <div class="arcade-icon">🧱</div>
                     <span class="arcade-title">TETRIS<br><span style="font-size:0.7em; color:#ccc;">SYSTEM.BLOCKS</span></span>
                 </div>
             </a>
-
             <a href="game2.html" class="arcade-card">
-                <div class="deco-dino">
-                    <div class="pixel-cloud">☁️</div>
-                    <div class="pixel-cactus">🌵</div>
-                    <div class="pixel-ground"></div>
-                </div>
+                <div class="deco-dino"><div class="pixel-cloud">☁️</div><div class="pixel-cactus">🌵</div><div class="pixel-ground"></div></div>
                 <div class="card-content">
                     <div class="arcade-icon">🦖</div>
                     <span class="arcade-title">DINO_RUN<br><span style="font-size:0.7em; color:#ccc;">NO_WIFI_MODE</span></span>
                 </div>
             </a>
-
             <a href="game3.html" class="arcade-card">
-                <div class="deco-2048">
-                    <div class="float-num">2</div>
-                    <div class="float-num">4</div>
-                    <div class="float-num">2048</div>
-                </div>
+                <div class="deco-2048"><div class="float-num">2</div><div class="float-num">4</div><div class="float-num">2048</div></div>
                 <div class="card-content">
                     <div class="arcade-icon">🔢</div>
                     <span class="arcade-title">DATA_MERGE<br><span style="font-size:0.7em; color:#ccc;">TARGET:2048</span></span>
@@ -279,7 +245,7 @@
         </div>
 
         <div class="danger-btn-container">
-            <button class="danger-btn" onclick="switchToHorror()">ACCESS: DARK_ZONE</button>
+            <button class="danger-btn" onclick="openWarning()">ACCESS: DARK_ZONE</button>
         </div>
     </section>
 
@@ -293,11 +259,7 @@
         <div class="shooter-card">
             <div class="shooter-icon">🔫</div>
             <h2 style="font-size: 2rem; color: #ff3333; margin-bottom: 10px;">3D GHOST HUNTER</h2>
-            <p class="shooter-desc">
-                偵測到高能反應...<br>
-                它們在黑暗中看著你。<br>
-                拿起你的武器，不要回頭。
-            </p>
+            <p class="shooter-desc">偵測到高能反應...<br>它們在黑暗中看著你。<br>拿起你的武器，不要回頭。</p>
             <a href="game4.html" class="play-horror-btn">ENTER NIGHTMARE</a>
         </div>
 
@@ -310,6 +272,10 @@
         const noiseLayer = document.getElementById('noise');
         const pageArcade = document.getElementById('page-arcade');
         const pageHorror = document.getElementById('page-horror');
+        
+        // 🌟 新增：獲取警告視窗元素
+        const warningModal = document.getElementById('warningModal');
+
         let currentTheme = 'arcade';
         let particlesArray = [];
 
@@ -361,6 +327,30 @@
             for (let i = 0; i < particlesArray.length; i++) { particlesArray[i].update(); particlesArray[i].draw(); }
             requestAnimationFrame(animate);
         }
+
+        // ================== 🌟 NEW: 警告視窗邏輯 ==================
+
+        // 1. 打開警告視窗
+        function openWarning() {
+            warningModal.classList.add('active');
+        }
+
+        // 2. 關閉警告視窗 (放棄)
+        function closeWarning() {
+            warningModal.classList.remove('active');
+        }
+
+        // 3. 確認切換 (執行真正的切換邏輯)
+        function confirmSwitch() {
+            closeWarning(); // 先關閉彈窗
+            
+            // 延遲一點點再切換，更有感覺
+            setTimeout(() => {
+                switchToHorror();
+            }, 300);
+        }
+
+        // ================== 原有的切換邏輯 ==================
 
         function switchToHorror() {
             currentTheme = 'horror';
