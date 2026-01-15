@@ -22,6 +22,8 @@
             min-height: 100vh;
             padding: 20px;
             overflow-x: hidden;
+            /* 雖然 JS 會阻止按鍵滾動，但這行 CSS 可以防止手機版左右滑動 */
+            touch-action: none; 
         }
         
         .header {
@@ -702,6 +704,12 @@
         }
 
         function handleKeyPress(event) {
+            // 阻止瀏覽器預設的滾動行為 (方向鍵 和 空白鍵)
+            const keysToBlock = [32, 37, 38, 39, 40];
+            if (keysToBlock.includes(event.keyCode)) {
+                event.preventDefault();
+            }
+
             if (gameOver) return;
             switch (event.keyCode) {
                 case 37: playerMove(-1); break;
