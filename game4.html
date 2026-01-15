@@ -2,9 +2,9 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Graveyard Shooter - Textured & Stable</title>
+    <title>Graveyard Shooter - Native Textures</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Courier New', Courier, monospace; background-color: #111; }
+        body { margin: 0; overflow: hidden; font-family: 'Courier New', Courier, monospace; background-color: #000; }
         #blocker {
             position: absolute; width: 100%; height: 100%;
             background-color: rgba(0,0,0,0.6);
@@ -32,7 +32,6 @@
             width: 4px; height: 4px; background: #00ff00;
             transform: translate(-50%, -50%); border-radius: 50%;
         }
-        #loading { position: absolute; bottom: 20px; left: 20px; color: yellow; font-weight: bold; background: rgba(0,0,0,0.5); padding: 5px;}
     </style>
     
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
@@ -51,21 +50,19 @@
         KILLS: <span id="score">0</span> | HEALTH: <span id="health">100</span>%
     </div>
     <div id="crosshair"></div>
-    <div id="loading">正在初始化...</div>
     
     <div id="blocker">
         <div id="instructions">
-            <p style="font-size:50px; letter-spacing: 5px;">墳場獵人：重製版</p>
-            <p>點擊畫面開始</p>
+            <p style="font-size:50px; letter-spacing: 5px;">幽靈獵人：紋理修復版</p>
+            <p>點擊畫面開始遊戲</p>
             <p>W, A, S, D 移動 | 空白鍵 跳躍 | 滑鼠左鍵 射擊</p>
-            <p style="font-size: 16px; color: #aaa;">(如果看不見精細模型，將使用替代紅體)</p>
+            <p style="font-size: 16px; color: #88ff88;">(紋理已改為本機生成，保證可見)</p>
         </div>
     </div>
 
     <script type="module">
         import * as THREE from 'three';
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
         let camera, scene, renderer, controls;
         let raycaster;
@@ -82,55 +79,97 @@
         let lastShootTime = 0;
         let playerWeapon;
         
-        // 模型相關變數
-        let ghostModelTemplate = null;
-        let ghostAnimations = null;
-        let enemyModelLoaded = false; // 標記外部模型是否成功加載
+        // 材質變數
+        let floorMaterial, stoneMaterial, woodMaterial;
         
-        // 紋理資源
-        let groundTexture, stoneTexture;
-
         const scoreEl = document.getElementById('score');
         const healthEl = document.getElementById('health');
         const blocker = document.getElementById('blocker');
-        const loadingEl = document.getElementById('loading');
-
-        // 資源 URLs (使用較穩定的 CDN)
-        const WEAPON_URL = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/BoomBox/glTF-Binary/BoomBox.glb'; 
-        const ENEMY_URL = 'https://threejs.org/examples/models/gltf/Soldier.glb'; 
-        // 紋理 URLs
-        const GROUND_TEX_URL = 'https://threejs.org/examples/textures/terrain/grasslight-big.jpg';
-        const STONE_TEX_URL = 'https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/paving/PavingStones092_1K_Color.jpg';
-
 
         init();
         animate();
 
+        // --- 核心技術：動態生成紋理函數 ---
+        function generateTexture(type) {
+            const size = 512;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const context = canvas.getContext('2d');
+
+            // 填充背景
+            if (type === 'grass') context.fillStyle = '#224422'; // 深綠底
+            if (type === 'stone') context.fillStyle = '#666666'; // 灰底
+            if (type === 'wood') context.fillStyle = '#442211';  // 深棕底
+            context.fillRect(0, 0, size, size);
+
+            // 添加噪點/細節
+            for (let i = 0; i < 4000; i++) {
+                const x = Math.random() * size;
+                const y = Math.random() * size;
+                const w = Math.random() * 3 + 1;
+                
+                if (type === 'grass') {
+                    // 草地雜點
+                    context.fillStyle = Math.random() < 0.5 ? '#113311' : '#335533';
+                    context.fillRect(x, y, w, w);
+                } else if (type === 'stone') {
+                    // 石頭斑點
+                    context.fillStyle = Math.random() < 0.5 ? '#444444' : '#888888';
+                    context.fillRect(x, y, w*2, w*2);
+                } else if (type === 'wood') {
+                    // 木紋線條
+                    context.fillStyle = '#221100';
+                    context.fillRect(x, Math.random() * size, 2, size); // 垂直紋路
+                    i+=5; // 加速循環
+                }
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            return texture;
+        }
+
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x111122); // 深藍夜色
-            scene.fog = new THREE.FogExp2(0x111122, 0.008); 
+            scene.background = new THREE.Color(0x050510); // 深夜色
+            scene.fog = new THREE.FogExp2(0x050510, 0.005); 
 
-            // --- 燈光系統 ---
-            const ambientLight = new THREE.AmbientLight(0x9999ff, 0.6); // 偏藍環境光
+            // --- 燈光 ---
+            const ambientLight = new THREE.AmbientLight(0x666688, 0.8); 
             scene.add(ambientLight);
             
-            const moonLight = new THREE.DirectionalLight(0xffffff, 1.2); // 月光
+            const moonLight = new THREE.DirectionalLight(0xffffff, 0.8);
             moonLight.position.set(50, 100, 50);
             moonLight.castShadow = true;
             moonLight.shadow.mapSize.width = 2048;
             moonLight.shadow.mapSize.height = 2048;
-            moonLight.shadow.bias = -0.0001;
             scene.add(moonLight);
 
-            // 玩家手電筒
+            // --- 相機與手電筒 ---
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.y = 12;
-            const flashlight = new THREE.SpotLight(0xffddaa, 80, 250, 0.5, 0.8, 1); // 暖色手電筒
+            
+            const flashlight = new THREE.SpotLight(0xffffee, 80, 250, 0.5, 0.5, 1);
             flashlight.position.set(0, 0, 0);
             flashlight.target.position.set(0, 0, -1);
             camera.add(flashlight);
             camera.add(flashlight.target);
+
+            // --- 武器 (自製幾何體) ---
+            const gunGeo = new THREE.BoxGeometry(1, 1, 4);
+            const gunMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.2 });
+            playerWeapon = new THREE.Mesh(gunGeo, gunMat);
+            playerWeapon.position.set(2, -1.5, -3); 
+            
+            const glowGeo = new THREE.BoxGeometry(0.2, 0.2, 3);
+            const glowMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            const glowBar = new THREE.Mesh(glowGeo, glowMat);
+            glowBar.position.y = 0.6;
+            playerWeapon.add(glowBar);
+            
+            camera.add(playerWeapon);
 
             controls = new PointerLockControls(camera, document.body);
 
@@ -140,6 +179,7 @@
             controls.addEventListener('unlock', function () { blocker.style.display = 'flex'; instructions.style.display = ''; });
             scene.add(controls.getObject());
 
+            // 事件
             document.addEventListener('keydown', onKeyDown);
             document.addEventListener('keyup', onKeyUp);
             document.addEventListener('mousedown', onMouseDown);
@@ -147,127 +187,122 @@
 
             raycaster = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, - 1, 0), 0, 10);
 
-            // --- 資源加載管理器 ---
-            const manager = new THREE.LoadingManager();
-            manager.onProgress = (url, itemsLoaded, itemsTotal) => {
-                loadingEl.innerText = `正在加載資源: ${Math.round(itemsLoaded / itemsTotal * 100)}%`;
-            };
-            manager.onLoad = () => {
-                loadingEl.style.display = 'none';
-                createGraveyardEnvironment(); // 資源加載完畢後再創建環境
-                // 初始生成幾個敵人
-                for(let i=0; i<5; i++) spawnEnemy();
-            };
-            manager.onError = (url) => {
-                 loadingEl.innerText = '部分資源加載失敗，將使用替代方案。';
-                 console.warn('Loading error on: ' + url);
-            };
+            // --- 生成環境材質 (重點修改) ---
+            const grassTex = generateTexture('grass');
+            grassTex.repeat.set(50, 50); // 地面重複平鋪
+            floorMaterial = new THREE.MeshStandardMaterial({ map: grassTex, roughness: 0.9 });
 
-            const texLoader = new THREE.TextureLoader(manager);
-            const gltfLoader = new GLTFLoader(manager);
+            const stoneTex = generateTexture('stone');
+            stoneMaterial = new THREE.MeshStandardMaterial({ map: stoneTex, roughness: 0.6 });
 
-            // 1. 加載紋理
-            groundTexture = texLoader.load(GROUND_TEX_URL);
-            groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
-            groundTexture.repeat.set(50, 50); // 地面紋理重複
+            const woodTex = generateTexture('wood');
+            woodMaterial = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.9 });
+
+            createEnvironment();
             
-            stoneTexture = texLoader.load(STONE_TEX_URL);
-            stoneTexture.wrapS = stoneTexture.wrapT = THREE.RepeatWrapping;
-
-            // 2. 加載模型
-            gltfLoader.load(WEAPON_URL, (gltf) => {
-                playerWeapon = gltf.scene;
-                playerWeapon.scale.set(100, 100, 100); 
-                playerWeapon.position.set(1.5, -1.5, -2.5);
-                playerWeapon.rotation.y = Math.PI;
-                camera.add(playerWeapon);
-            }, undefined, (e) => { console.warn("Weapon failed to load"); });
-
-            gltfLoader.load(ENEMY_URL, (gltf) => {
-                // 成功加載外部敵人模型
-                const model = gltf.scene;
-                ghostAnimations = gltf.animations;
-                model.traverse((child) => {
-                    if (child.isMesh) {
-                        child.material = new THREE.MeshStandardMaterial({
-                            color: 0x88ffff, 
-                            emissive: 0x004444,
-                            roughness: 0.1,
-                            metalness: 0.8
-                        });
-                        child.castShadow = true;
-                    }
-                });
-                model.scale.set(7, 7, 7);
-                ghostModelTemplate = model;
-                enemyModelLoaded = true; // 標記成功
-            }, undefined, (e) => { 
-                console.warn("Enemy model failed to load, switching to fallback.");
-                enemyModelLoaded = false; // 標記失敗，將使用替代品
-            });
+            // 初始生成敵人
+            for(let i=0; i<5; i++) spawnGhost(); 
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            renderer.outputColorSpace = THREE.SRGBColorSpace;
-            renderer.toneMapping = THREE.ReinhardToneMapping;
-            renderer.toneMappingExposure = 1.1;
             document.body.appendChild(renderer.domElement);
         }
 
-        function createGraveyardEnvironment() {
-            // 地面 (應用紋理)
+        function createEnvironment() {
+            // 地面
             const floorGeometry = new THREE.PlaneGeometry(1000, 1000, 100, 100);
             floorGeometry.rotateX(- Math.PI / 2);
-            const positionAttribute = floorGeometry.attributes.position;
-            for ( let i = 0; i < positionAttribute.count; i ++ ) {
-                 if (positionAttribute.getY(i) === 0) positionAttribute.setY( i, Math.random() * 3); // 增加起伏
+            // 地形起伏
+            const pos = floorGeometry.attributes.position;
+            for ( let i = 0; i < pos.count; i ++ ) {
+                 if (pos.getY(i) === 0) pos.setY( i, Math.random() * 2); 
             }
             floorGeometry.computeVertexNormals();
-
-            const floorMaterial = new THREE.MeshStandardMaterial({ 
-                map: groundTexture, // 應用草地紋理
-                roughness: 0.9,
-                metalness: 0.1
-            });
+            
             const floor = new THREE.Mesh(floorGeometry, floorMaterial);
             floor.receiveShadow = true;
             scene.add(floor);
 
-            // 墓碑 (應用石材紋理)
-            const tombGeo = new THREE.BoxGeometry(5, 10, 3);
-            const tombMat = new THREE.MeshStandardMaterial({ 
-                map: stoneTexture, // 應用石頭紋理
-                roughness: 0.8 
-            });
-            
-            // 枯樹 (保持深色粗糙材質)
-            const treeGeo = new THREE.ConeGeometry(4, 30, 6);
-            const treeMat = new THREE.MeshStandardMaterial({ color: 0x221100, roughness: 1 }); 
+            // 墓碑與樹
+            const tombGeo = new THREE.BoxGeometry(5, 8, 2);
+            const treeGeo = new THREE.ConeGeometry(3, 25, 6);
 
-            for (let i = 0; i < 120; i++) {
-                const tomb = new THREE.Mesh(tombGeo, tombMat);
-                tomb.position.x = (Math.random() - 0.5) * 800;
-                tomb.position.z = (Math.random() - 0.5) * 800;
-                tomb.position.y = 4.5;
-                tomb.rotation.y = Math.random() * 0.5;
-                tomb.rotation.x = (Math.random() - 0.5) * 0.3;
-                tomb.castShadow = true;
-                tomb.receiveShadow = true;
-                scene.add(tomb);
+            for (let i = 0; i < 200; i++) {
+                const x = (Math.random() - 0.5) * 800;
+                const z = (Math.random() - 0.5) * 800;
 
-                if (i % 4 === 0) {
-                     const tree = new THREE.Mesh(treeGeo, treeMat);
-                     tree.position.x = (Math.random() - 0.5) * 800;
-                     tree.position.z = (Math.random() - 0.5) * 800;
-                     tree.position.y = 15;
-                     tree.rotation.y = Math.random() * Math.PI;
-                     tree.castShadow = true;
-                     scene.add(tree);
+                // 避開出生點 (60單位半徑)
+                if (Math.abs(x) < 60 && Math.abs(z) < 60) continue;
+
+                if (Math.random() < 0.2) {
+                    // 樹
+                    const tree = new THREE.Mesh(treeGeo, woodMaterial);
+                    tree.position.set(x, 12.5, z);
+                    tree.castShadow = true;
+                    scene.add(tree);
+                } else {
+                    // 墓碑
+                    const tomb = new THREE.Mesh(tombGeo, stoneMaterial);
+                    tomb.position.set(x, 4, z);
+                    tomb.rotation.y = (Math.random() - 0.5);
+                    tomb.rotation.x = (Math.random() - 0.5) * 0.2;
+                    tomb.castShadow = true;
+                    tomb.receiveShadow = true;
+                    scene.add(tomb);
                 }
             }
+        }
+
+        function spawnGhost() {
+            if (enemyUnits.length > 20) return;
+
+            const ghostGroup = new THREE.Group();
+
+            // 身體 (半透明發光圓錐)
+            const bodyGeo = new THREE.ConeGeometry(4, 10, 8, 1, true); 
+            const bodyMat = new THREE.MeshStandardMaterial({ 
+                color: 0xccffff, 
+                emissive: 0x004444,
+                transparent: true, opacity: 0.8, side: THREE.DoubleSide 
+            });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 5;
+            ghostGroup.add(body);
+
+            // 頭
+            const headGeo = new THREE.SphereGeometry(2.5, 16, 16);
+            const head = new THREE.Mesh(headGeo, bodyMat);
+            head.position.y = 10;
+            ghostGroup.add(head);
+
+            // 眼睛
+            const eyeGeo = new THREE.SphereGeometry(0.5);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(-1, 10.5, 2);
+            ghostGroup.add(leftEye);
+
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(1, 10.5, 2);
+            ghostGroup.add(rightEye);
+            
+            // 位置
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 80 + Math.random() * 200;
+            ghostGroup.position.x = controls.getObject().position.x + Math.cos(angle) * radius;
+            ghostGroup.position.z = controls.getObject().position.z + Math.sin(angle) * radius;
+            ghostGroup.position.y = 2;
+
+            scene.add(ghostGroup);
+            
+            enemyUnits.push({ 
+                group: ghostGroup, 
+                speed: 15 + Math.random() * 10, 
+                floatOffset: Math.random() * 100 
+            });
         }
 
         function onKeyDown(event) {
@@ -294,144 +329,84 @@
             if (now - lastShootTime < 200) return; 
             lastShootTime = now;
 
-            const flash = new THREE.PointLight(0xffffaa, 8, 30);
-            flash.position.set(1.5, -1, -3);
-            camera.add(flash);
-            setTimeout(() => camera.remove(flash), 40);
-            
             if(playerWeapon) {
-                playerWeapon.position.z += 0.25;
-                setTimeout(() => { playerWeapon.position.z -= 0.25; }, 80);
+                playerWeapon.position.z += 0.5;
+                setTimeout(()=> playerWeapon.position.z -= 0.5, 50);
             }
+            const flash = new THREE.PointLight(0x00ff00, 5, 20);
+            flash.position.set(2, -1, -5);
+            camera.add(flash);
+            setTimeout(() => camera.remove(flash), 50);
 
             const shootRaycaster = new THREE.Raycaster();
             shootRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
 
-            const enemyMeshes = enemyUnits.map(u => u.mesh);
-            const intersects = shootRaycaster.intersectObjects(enemyMeshes, true);
+            let allEnemyParts = [];
+            enemyUnits.forEach(u => {
+                u.group.children.forEach(child => allEnemyParts.push(child));
+            });
+
+            const intersects = shootRaycaster.intersectObjects(allEnemyParts);
 
             if (intersects.length > 0) {
-                let hitObject = intersects[0].object;
-                // 如果是複雜模型，向上尋找父級；如果是簡單替代模型，它自己就是主體
-                while(hitObject.parent && hitObject.parent.type !== 'Scene' && !enemyMeshes.includes(hitObject)) {
-                    hitObject = hitObject.parent;
-                }
-                
-                const hitUnitIndex = enemyUnits.findIndex(u => u.mesh === hitObject);
-                if (hitUnitIndex > -1) {
-                    destroyEnemy(hitUnitIndex);
+                const hitObject = intersects[0].object;
+                const hitGroup = hitObject.parent; 
+                const index = enemyUnits.findIndex(u => u.group === hitGroup);
+                if (index > -1) {
+                    destroyEnemy(index);
                 }
             }
         }
 
         function destroyEnemy(index) {
             const unit = enemyUnits[index];
-            scene.remove(unit.mesh);
-            if(unit.mixer) unit.mixer.stopAllAction(); // 只有複雜模型有 mixer
+            scene.remove(unit.group);
             enemyUnits.splice(index, 1);
             score++;
             scoreEl.innerText = score;
             
-            // 爆炸特效
-            const geometry = new THREE.DodecahedronGeometry(4, 0);
-            const material = new THREE.MeshBasicMaterial({ color: 0xff5500, wireframe: true });
-            const explosion = new THREE.Mesh(geometry, material);
-            explosion.position.copy(unit.mesh.position);
-            scene.add(explosion);
-            let scale = 1.0;
-            const animExp = () => {
-                scale += 0.3;
-                explosion.scale.set(scale, scale, scale);
-                explosion.material.opacity -= 0.08;
-                explosion.rotation.y += 0.1;
-                if (scale < 6) requestAnimationFrame(animExp);
-                else scene.remove(explosion);
-            };
-            animExp();
-        }
+            const pGeo = new THREE.BufferGeometry();
+            const pCount = 20;
+            const pPos = new Float32Array(pCount * 3);
+            for(let i=0; i<pCount*3; i++) pPos[i] = (Math.random()-0.5)*5;
+            pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+            const pMat = new THREE.PointsMaterial({color: 0xccffff, size: 1});
+            const particles = new THREE.Points(pGeo, pMat);
+            particles.position.copy(unit.group.position);
+            particles.position.y += 5;
+            scene.add(particles);
 
-        // --- 核心修改：安全的敵人生成 ---
-        function spawnEnemy() {
-            if (enemyUnits.length > 20) return; 
-
-            let enemyMesh, mixer = null;
-
-            // 判斷：如果外部模型加載成功，使用它；否則使用替代品
-            if (enemyModelLoaded && ghostModelTemplate) {
-                // --- 方案 A: 使用精細 3D 模型 ---
-                enemyMesh = ghostModelTemplate.clone();
-                mixer = new THREE.AnimationMixer(enemyMesh);
-                const clip = ghostAnimations[1] || ghostAnimations[0]; 
-                if (clip) {
-                    const action = mixer.clipAction(clip);
-                    action.play();
-                }
-                // 調整高度以適應地面
-                enemyMesh.position.y = 0;
-            } else {
-                // --- 方案 B: 使用替代品 (紅色發光膠囊) ---
-                // 確保即使網絡不好，玩家也有東西可以打
-                const geo = new THREE.CapsuleGeometry(4, 10, 8);
-                const mat = new THREE.MeshStandardMaterial({ 
-                    color: 0xff0000, 
-                    emissive: 0xaa0000, // 強烈自發光
-                    roughness: 0.4,
-                    metalness: 0.6
-                });
-                enemyMesh = new THREE.Mesh(geo, mat);
-                enemyMesh.castShadow = true;
-                // 替代品懸浮在空中
-                enemyMesh.position.y = 10;
-            }
-
-            // 共同的生成位置邏輯
-            const angle = Math.random() * Math.PI * 2;
-            const radius = 150 + Math.random() * 250;
-            enemyMesh.position.x = controls.getObject().position.x + Math.cos(angle) * radius;
-            enemyMesh.position.z = controls.getObject().position.z + Math.sin(angle) * radius;
-
-            scene.add(enemyMesh);
-            // 儲存資料單元 (替代品沒有 mixer)
-            enemyUnits.push({ mesh: enemyMesh, mixer: mixer, speed: 25 + Math.random() * 20 });
+            setTimeout(() => scene.remove(particles), 500);
         }
 
         function updateGameState(delta) {
             const playerPos = controls.getObject().position;
-            
-            enemyUnits.forEach((unit, index) => {
-                // 如果有動畫混合器就更新 (替代品沒有)
-                if (unit.mixer) unit.mixer.update(delta);
-                
-                const lookAtPos = new THREE.Vector3(playerPos.x, unit.mesh.position.y, playerPos.z);
-                unit.mesh.lookAt(lookAtPos); 
+            const time = clock.elapsedTime;
 
-                const direction = new THREE.Vector3().subVectors(playerPos, unit.mesh.position);
-                const distance = direction.length();
+            enemyUnits.forEach(unit => {
+                unit.group.lookAt(playerPos.x, unit.group.position.y, playerPos.z);
 
-                if (distance > 18) {
-                    direction.normalize();
-                    unit.mesh.position.add(direction.multiplyScalar(unit.speed * delta));
+                const dir = new THREE.Vector3().subVectors(playerPos, unit.group.position).normalize();
+                const dist = unit.group.position.distanceTo(playerPos);
+
+                if (dist > 10) {
+                    unit.group.position.add(dir.multiplyScalar(unit.speed * delta));
                 } else {
-                    health -= delta * 15; 
+                    health -= delta * 20;
                     healthEl.innerText = Math.floor(Math.max(0, health));
-                    // 受傷紅屏效果 (簡單模擬)
-                    blocker.style.backgroundColor = `rgba(255,0,0,${(100-health)/200})`;
+                    blocker.style.backgroundColor = `rgba(255, 0, 0, ${(100-health)/200})`;
                     if (health <= 0) {
                         controls.unlock();
-                        blocker.style.backgroundColor = 'rgba(200,0,0,0.8)';
-                        instructions.innerHTML = "<p>你死了。</p><p>點擊刷新重試</p>";
+                        instructions.innerHTML = `<p style="color:red">GAME OVER</p><p>Score: ${score}</p><p>點擊刷新</p>`;
                         instructions.onclick = () => location.reload();
                     }
                 }
-
-                // 替代品的額外漂浮動畫
-                if (!unit.mixer) {
-                     unit.mesh.position.y = 10 + Math.sin(clock.elapsedTime * 3 + index) * 2;
-                }
+                unit.group.position.y = 2 + Math.sin(time * 3 + unit.floatOffset) * 1.5;
             });
-            
-            // 持續生成，保持壓力
-            if (enemyUnits.length < 15 && Math.random() < 0.05 && health > 0) spawnEnemy();
+
+            if (enemyUnits.length < 10 && Math.random() < 0.02 && health > 0) {
+                spawnGhost();
+            }
         }
 
         function onWindowResize() {
@@ -445,16 +420,16 @@
             const delta = clock.getDelta(); 
 
             if (controls.isLocked === true && health > 0) {
-                velocity.x -= velocity.x * 8.0 * delta;
-                velocity.z -= velocity.z * 8.0 * delta;
-                velocity.y -= 9.8 * 80.0 * delta; 
+                velocity.x -= velocity.x * 10.0 * delta;
+                velocity.z -= velocity.z * 10.0 * delta;
+                velocity.y -= 9.8 * 100.0 * delta; 
 
                 direction.z = Number(moveForward) - Number(moveBackward);
                 direction.x = Number(moveRight) - Number(moveLeft);
                 direction.normalize();
 
-                if (moveForward || moveBackward) velocity.z -= direction.z * 450.0 * delta;
-                if (moveLeft || moveRight) velocity.x -= direction.x * 450.0 * delta;
+                if (moveForward || moveBackward) velocity.z -= direction.z * 400.0 * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * 400.0 * delta;
 
                 controls.moveRight(- velocity.x * delta);
                 controls.moveForward(- velocity.z * delta);
@@ -468,7 +443,6 @@
                 
                 updateGameState(delta);
             } else if (health > 0) {
-                // 暫停時重置紅屏
                 blocker.style.backgroundColor = 'rgba(0,0,0,0.6)';
             }
 
