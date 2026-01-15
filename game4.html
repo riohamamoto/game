@@ -2,23 +2,22 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Graveyard Shooter - High Loot & Audio Fix</title>
+    <title>Graveyard Shooter - Dark Ambient</title>
     <style>
         /* --- 基礎設定 --- */
         body { margin: 0; overflow: hidden; background-color: #000; user-select: none; font-family: 'Segoe UI', 'Courier New', monospace; }
         
-        /* --- 全螢幕特效 --- */
+        /* --- 畫面特效 --- */
         #screen-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
-            background: radial-gradient(circle, rgba(0,0,0,0) 50%, rgba(0,20,0,0.6) 90%);
-            box-shadow: inset 0 0 100px rgba(0,0,0,0.9);
+            background: radial-gradient(circle, rgba(0,0,0,0) 40%, rgba(10,0,0,0.8) 90%);
             z-index: 10;
         }
         #scanlines {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-            background-size: 100% 4px, 6px 100%;
-            z-index: 11; opacity: 0.6;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+            background-size: 100% 4px;
+            z-index: 11; opacity: 0.3;
         }
 
         /* --- 準心 --- */
@@ -32,8 +31,8 @@
             border: 1px solid rgba(0, 255, 255, 0.5);
             border-radius: 50%;
             position: relative;
+            box-shadow: 0 0 5px cyan;
             transition: all 0.1s;
-            box-shadow: 0 0 10px cyan;
         }
         #crosshair::after {
             content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -45,62 +44,71 @@
         }
         @keyframes spin { 100% { transform: rotate(360deg); } }
 
-        /* --- UI 容器 --- */
+        /* --- UI 系統 --- */
         #hud {
             position: absolute; width: 100%; height: 100%; pointer-events: none; z-index: 15;
             padding: 20px; box-sizing: border-box;
             display: flex; flex-direction: column; justify-content: space-between;
         }
         .hud-panel {
-            background: rgba(0, 20, 40, 0.7);
-            border: 1px solid rgba(0, 255, 255, 0.3);
-            border-left: 5px solid cyan;
+            background: rgba(10, 20, 30, 0.6);
+            border: 1px solid rgba(0, 255, 255, 0.2);
             padding: 15px;
-            backdrop-filter: blur(4px);
-            clip-path: polygon(0 0, 100% 0, 100% 85%, 90% 100%, 0 100%);
             color: #fff;
-            text-shadow: 0 0 5px cyan;
-            transition: all 0.2s;
+            backdrop-filter: blur(2px);
         }
-        .hud-bottom-left { position: absolute; bottom: 30px; left: 30px; width: 300px; }
-        .hp-segment { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 5px; }
+        
+        /* 左下角血量 */
+        .hud-bottom-left { 
+            position: absolute; bottom: 30px; left: 30px; width: 300px; 
+            border-left: 5px solid cyan;
+            clip-path: polygon(0 0, 100% 0, 100% 80%, 90% 100%, 0 100%);
+        }
         .hud-label { font-size: 12px; color: #aaa; letter-spacing: 2px; }
-        .hud-value-big { font-size: 36px; font-weight: bold; line-height: 1; }
-        #hp-bar-container { width: 100%; height: 15px; background: #001122; border: 1px solid #004455; transform: skewX(-20deg); overflow: hidden; }
-        #hp-bar-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #ff0000, #ffff00); box-shadow: 0 0 10px #ff0000; }
+        .hud-value-big { font-size: 36px; font-weight: bold; line-height: 1; text-shadow: 0 0 10px cyan; }
+        #hp-bar-container { width: 100%; height: 15px; background: #111; border: 1px solid #333; margin-top: 5px; transform: skewX(-20deg); }
+        #hp-bar-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #ff0000, #ffff00); transition: width 0.2s; }
 
-        .hud-bottom-right { position: absolute; bottom: 30px; right: 30px; text-align: right; border-left: none; border-right: 5px solid yellow; clip-path: polygon(10% 0, 100% 0, 100% 100%, 0 100%, 0 15%); }
-        #ammo-val { font-size: 60px; color: #ffff00; text-shadow: 0 0 15px #ffaa00; }
-        #weapon-type { font-size: 14px; color: #ccc; text-transform: uppercase; border-top: 1px solid #555; padding-top: 5px; margin-top: 5px; }
+        /* 右下角彈藥 */
+        .hud-bottom-right { 
+            position: absolute; bottom: 30px; right: 30px; text-align: right; 
+            border-right: 5px solid yellow;
+            clip-path: polygon(10% 0, 100% 0, 100% 100%, 0 100%, 0 15%);
+        }
+        #ammo-val { font-size: 60px; color: #ffff00; text-shadow: 0 0 15px #ffaa00; line-height: 1; }
+        #weapon-type { font-size: 14px; color: #ccc; margin-top: 5px; border-top: 1px solid #555; padding-top: 5px; }
 
-        .hud-top-center { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; }
-        .score-box { background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2); padding: 5px 20px; border-radius: 20px; text-align: center; }
-        #boss-warning { color: #ff0000; font-weight: bold; font-size: 18px; display: none; animation: pulseWarning 0.5s infinite alternate; }
-        @keyframes pulseWarning { from { opacity: 0.5; text-shadow: 0 0 5px red; } to { opacity: 1; text-shadow: 0 0 20px red; } }
+        /* 上方分數 */
+        .hud-top-center { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; align-items: center; flex-direction: column;}
+        .score-box { background: rgba(0,0,0,0.5); border: 1px solid #444; padding: 5px 20px; border-radius: 15px; text-align: center; }
+        
+        /* Boss 警告 */
+        #boss-warning { color: red; font-size: 24px; font-weight: bold; display: none; animation: pulse 0.5s infinite alternate; text-shadow: 0 0 10px red; }
+        @keyframes pulse { from{opacity:0.2;} to{opacity:1;} }
 
-        /* --- BOSS UI --- */
-        #boss-tracker { position: absolute; top: 0; left: 0; width: 220px; pointer-events: none; display: none; z-index: 25; }
-        .boss-hud-inner { border: 2px solid #ff0000; background: rgba(30, 0, 0, 0.8); padding: 10px; position: relative; }
-        .boss-hud-inner::before { content: ''; position: absolute; top: -5px; left: -5px; width: 10px; height: 10px; border-top: 2px solid red; border-left: 2px solid red; }
-        .boss-hud-inner::after { content: ''; position: absolute; bottom: -5px; right: -5px; width: 10px; height: 10px; border-bottom: 2px solid red; border-right: 2px solid red; }
-        .boss-header { display: flex; justify-content: space-between; color: #ff5555; font-size: 12px; font-weight: bold; margin-bottom: 5px;}
-        .boss-name { font-size: 16px; color: #ff0000; text-shadow: 0 0 10px red; text-transform: uppercase; font-weight: 900; letter-spacing: 1px;}
-        #boss-hp-track-bg { width: 100%; height: 8px; background: #330000; margin-top: 5px; }
-        #boss-hp-track-fill { width: 100%; height: 100%; background: #ff0000; transition: width 0.1s linear; }
-        #boss-dist { font-size: 10px; color: #fff; text-align: right; margin-top: 2px; }
-        #boss-line { position: absolute; top: 100%; left: 50%; width: 2px; height: 30px; background: linear-gradient(to bottom, red, transparent); transform: translateX(-50%); }
+        /* Boss 血條 */
+        #boss-tracker { position: absolute; display: none; width: 200px; pointer-events: none; z-index: 25; }
+        .boss-ui-box { border: 2px solid red; background: rgba(0,0,0,0.7); padding: 5px; }
+        .boss-name { color: red; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+        #boss-hp-bg { width: 100%; height: 6px; background: #330000; margin-top: 2px; }
+        #boss-hp-fill { width: 100%; height: 100%; background: red; }
+        #boss-dist { color: #fff; font-size: 10px; text-align: right; }
 
+        /* 互動提示 */
         #interactive-msg {
             position: absolute; top: 60%; left: 50%; transform: translateX(-50%);
-            font-size: 18px; color: #00ffff; text-shadow: 0 0 10px #00ffff;
-            background: rgba(0, 20, 40, 0.8); padding: 10px 20px; border: 1px solid cyan;
+            font-size: 16px; color: #00ffff; text-shadow: 0 0 8px cyan;
+            background: rgba(0, 10, 20, 0.8); padding: 8px 16px; border: 1px solid cyan;
             display: none; z-index: 30;
         }
 
+        /* 暫停/開始選單 */
         #blocker {
             position: absolute; top:0; left:0; width: 100%; height: 100%;
-            background-color: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; color: #ffffff; z-index: 999;
+            background-color: rgba(0,0,0,0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; color: #ffffff; z-index: 999;
         }
+        .start-btn { border: 1px solid white; padding: 10px 30px; cursor: pointer; transition: 0.3s; margin-top: 20px; }
+        .start-btn:hover { background: white; color: black; }
     </style>
     
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
@@ -116,44 +124,44 @@
     <div id="crosshair-wrapper"><div id="crosshair"></div></div>
 
     <div id="boss-tracker">
-        <div class="boss-hud-inner">
-            <div class="boss-header"><span>THREAT DETECTED</span><span>Lvl.<span id="boss-lvl-ui">1</span></span></div>
-            <div class="boss-name">HELL KEEPER</div>
-            <div id="boss-hp-track-bg"><div id="boss-hp-track-fill"></div></div>
-            <div id="boss-dist">DIST: 24m</div>
+        <div class="boss-ui-box">
+            <div style="display:flex; justify-content:space-between;">
+                <span class="boss-name">HELL KEEPER</span>
+                <span class="boss-name">LV.<span id="boss-lvl-ui">1</span></span>
+            </div>
+            <div id="boss-hp-bg"><div id="boss-hp-fill"></div></div>
+            <div id="boss-dist">25m</div>
         </div>
-        <div id="boss-line"></div>
+        <div style="width:2px; height:20px; background:red; margin:0 auto;"></div>
     </div>
     
     <div id="hud">
         <div class="hud-top-center">
-            <div class="hud-panel score-box">
+            <div class="score-box">
                 <span style="font-size:12px; color:#aaa;">SCORE</span><br>
                 <span id="score-val" style="font-size:24px; color:#fff;">0</span>
             </div>
-            <div id="boss-warning">⚠️ BOSS APPROACHING ⚠️</div>
+            <div id="boss-warning">⚠️ BOSS DETECTED ⚠️</div>
         </div>
         <div class="hud-panel hud-bottom-left">
             <div class="hp-segment"><span class="hud-label">VITALS</span><span class="hud-value-big"><span id="hp-text">100</span>%</span></div>
             <div id="hp-bar-container"><div id="hp-bar-fill"></div></div>
         </div>
         <div class="hud-panel hud-bottom-right">
-            <div class="hud-label">AMMUNITION</div>
+            <div class="hud-label">AMMO</div>
             <div id="ammo-val">6</div>
             <div class="hud-label" style="font-size:10px;">RESERVE: <span id="ammo-reserve">36</span></div>
-            <div id="weapon-type">Wingman B3</div>
+            <div id="weapon-type">Wingman</div>
         </div>
     </div>
     
     <div id="blocker">
-        <div style="text-align: center; cursor: pointer;" id="start-btn">
-            <h1 style="color:red; font-size:60px; margin:0; text-shadow: 0 0 20px red;">GRAVEYARD PROTOCOL</h1>
-            <p style="font-size: 20px; color: cyan;">點擊畫面啟動系統</p>
+        <div style="text-align: center;">
+            <h1 style="color:red; font-size:60px; margin:0; text-shadow: 0 0 20px red; letter-spacing: 5px;">GRAVEYARD</h1>
+            <h2 style="color:#666; margin-top:0;">PROTOCOL: DARK AMBIENT</h2>
             <br>
-            <div style="border: 1px solid #555; padding: 20px; background: rgba(255,255,255,0.1);">
-                <p>WASD 移動 | 空白鍵 跳躍 | R 換彈 | <b>E 拾取</b></p>
-                <p style="color: #ff5555;">更新：大幅提升武器箱掉落率</p>
-            </div>
+            <div class="start-btn" id="start-btn">CLICK TO START</div>
+            <p style="font-size:12px; color:#555; margin-top:15px;">Includes Procedural Soundtrack</p>
         </div>
     </div>
 
@@ -161,44 +169,46 @@
         import * as THREE from 'three';
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 
-        // --- 變數宣告 ---
+        // --- 遊戲全域變數 ---
         let camera, scene, renderer, controls;
         let raycaster;
         const clock = new THREE.Clock();
         
+        // 玩家狀態
         const player = {
             hp: 100, maxHp: 100,
             ammo: 6, maxMag: 6, reserveAmmo: 24, 
             damage: 45, isSuperWeapon: false, 
             canShoot: true, isReloading: false,
-            score: 0,
-            difficultyLevel: 1 
+            score: 0
         };
 
+        // Boss 狀態
         let bossState = { active: false, unit: null, nextSpawnScore: 400, count: 0 };
+        
+        // 物理/移動
         const velocity = new THREE.Vector3();
         const direction = new THREE.Vector3();
         let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
         let canJump = false;
         let lastStepTime = 0; 
         
+        // 物件管理
         let enemyUnits = []; 
         let dropItems = []; 
         let focusItem = null; 
         let lastShootTime = 0;
         let playerWeaponGroup; 
         
-        // 材質
+        // 材質庫
         let floorMaterial, stoneMaterial, woodMaterial, ammoMat, weaponDropMat;
-        
-        // 槍枝材質
         const matSilver = new THREE.MeshStandardMaterial({color: 0xcccccc, roughness: 0.3, metalness: 0.8});
         const matWhite = new THREE.MeshStandardMaterial({color: 0xffffff, roughness: 0.5, metalness: 0.2});
         const matDark = new THREE.MeshStandardMaterial({color: 0x222222, roughness: 0.8});
-        const matWood = new THREE.MeshStandardMaterial({color: 0x553311, roughness: 0.9});
         const matBlue = new THREE.MeshStandardMaterial({color: 0x0088ff, emissive: 0x002244});
         const matGlow = new THREE.MeshBasicMaterial({color: 0x00ff00});
 
+        // DOM 元素快取
         const hpFill = document.getElementById('hp-bar-fill');
         const hpText = document.getElementById('hp-text');
         const ammoValEl = document.getElementById('ammo-val');
@@ -210,20 +220,125 @@
         const blocker = document.getElementById('blocker');
         const crosshair = document.getElementById('crosshair');
         const bossTracker = document.getElementById('boss-tracker');
-        const bossHpFill = document.getElementById('boss-hp-track-fill');
+        const bossHpFill = document.getElementById('boss-hp-fill');
         const bossDistEl = document.getElementById('boss-dist');
         const bossLvlUi = document.getElementById('boss-lvl-ui');
 
+        // --- 音效與音樂引擎 (Web Audio API) ---
         const SoundGen = {
-            ctx: null, masterGain: null, musicNodes: [], creepyInterval: null,
+            ctx: null, masterGain: null, 
+            musicNodes: [], // 儲存背景音樂的振盪器以便停止
+            melodyTimer: null,
+            creepyTimer: null,
+
             init: function() {
                 window.AudioContext = window.AudioContext || window.webkitAudioContext;
                 this.ctx = new AudioContext();
                 this.masterGain = this.ctx.createGain();
-                this.masterGain.gain.value = 0.5; 
+                this.masterGain.gain.value = 0.4; // 總音量
                 this.masterGain.connect(this.ctx.destination);
-                this.startContinuousMusic();
+                
+                // 啟動背景音樂系統
+                this.startMusic();
+                this.startCreepyAmbience();
             },
+
+            // --- 背景音樂：黑暗氛圍生成器 ---
+            startMusic: function() {
+                this.stopMusic(); // 先清除舊的
+
+                const t = this.ctx.currentTime;
+                
+                // 1. 低頻 Drone (製造壓迫感)
+                // 使用兩個頻率非常接近的波形 (55Hz 和 58Hz)，產生 3Hz 的「拍頻」(Beating)
+                const drone1 = this.ctx.createOscillator();
+                drone1.type = 'triangle';
+                drone1.frequency.value = 55; // 低音 A
+                
+                const drone2 = this.ctx.createOscillator();
+                drone2.type = 'sine';
+                drone2.frequency.value = 58; // 稍微走音，產生震動感
+
+                const droneGain = this.ctx.createGain();
+                droneGain.gain.value = 0.1; // 背景音量小一點
+
+                // 低通濾波器，讓聲音悶一點，像是在遠處
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = 200;
+
+                drone1.connect(filter);
+                drone2.connect(filter);
+                filter.connect(droneGain);
+                droneGain.connect(this.masterGain);
+
+                drone1.start(t);
+                drone2.start(t);
+                this.musicNodes.push(drone1, drone2);
+
+                // 2. 隨機「幽靈鋼琴」旋律
+                // 不定時播放一些高音、不和諧的音符
+                const playGhostNote = () => {
+                    if (this.ctx.state === 'suspended') return;
+                    
+                    // 隨機選一個恐怖的音 (半音階/減五度)
+                    const notes = [440, 466, 523, 554, 622, 659]; // A4, Bb4, C5, C#5, Eb5, E5
+                    const freq = notes[Math.floor(Math.random() * notes.length)];
+                    
+                    const osc = this.ctx.createOscillator();
+                    osc.type = 'sine'; // 正弦波聽起來像純淨的鈴聲或鋼琴泛音
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    
+                    const gain = this.ctx.createGain();
+                    gain.gain.setValueAtTime(0, this.ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.05, this.ctx.currentTime + 0.1); // 慢攻擊
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 4.0); // 長尾音
+
+                    // 加一點顫音 (Vibrato)
+                    const vib = this.ctx.createOscillator();
+                    vib.frequency.value = 5; 
+                    const vibGain = this.ctx.createGain();
+                    vibGain.gain.value = 5;
+                    vib.connect(vibGain);
+                    vibGain.connect(osc.frequency);
+                    vib.start();
+
+                    osc.connect(gain);
+                    gain.connect(this.masterGain);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 4.0);
+                    vib.stop(this.ctx.currentTime + 4.0);
+
+                    // 隨機決定下一個音的時間 (2秒 ~ 6秒)
+                    this.melodyTimer = setTimeout(playGhostNote, 2000 + Math.random() * 4000);
+                };
+                playGhostNote();
+            },
+
+            // --- 隨機環境音效 (保留之前的驚嚇感) ---
+            startCreepyAmbience: function() {
+                const playScary = () => {
+                    if (this.ctx.state === 'suspended') return;
+                    // 偶爾播放金屬刮擦聲或低吼
+                    if(Math.random() < 0.4) {
+                        this.playTone(80 + Math.random()*20, 'sawtooth', 2.0, 0.05); // 低吼
+                    } else if (Math.random() < 0.3) {
+                         // 金屬聲
+                        this.playTone(1200, 'sawtooth', 0.5, 0.03, 800);
+                    }
+                    this.creepyTimer = setTimeout(playScary, 8000 + Math.random() * 10000);
+                };
+                this.creepyTimer = setTimeout(playScary, 5000);
+            },
+
+            stopMusic: function() {
+                this.musicNodes.forEach(n => { try{n.stop(); n.disconnect();}catch(e){} });
+                this.musicNodes = [];
+                if(this.melodyTimer) clearTimeout(this.melodyTimer);
+                if(this.creepyTimer) clearTimeout(this.creepyTimer);
+            },
+
+            // 通用發聲函數
             playTone: function(freq, type, duration, vol, slideTo = null) {
                 if (!this.ctx) return;
                 const osc = this.ctx.createOscillator();
@@ -236,43 +351,19 @@
                 osc.connect(gain); gain.connect(this.masterGain);
                 osc.start(); osc.stop(this.ctx.currentTime + duration);
             },
-            playNoise: function(duration, vol, filterFreq = null) {
+            playNoise: function(duration, vol) {
                 if (!this.ctx) return;
                 const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * duration, this.ctx.sampleRate);
                 const data = buf.getChannelData(0);
                 for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
                 const src = this.ctx.createBufferSource(); src.buffer = buf;
-                const gain = this.ctx.createGain(); gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+                const gain = this.ctx.createGain(); 
+                gain.gain.setValueAtTime(vol, this.ctx.currentTime);
                 gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-                if (filterFreq) {
-                    const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = filterFreq;
-                    src.connect(f); f.connect(gain);
-                } else src.connect(gain);
-                gain.connect(this.masterGain); src.start();
+                src.connect(gain); gain.connect(this.masterGain); src.start();
             },
-            startContinuousMusic: function() {
-                if (!this.ctx) return;
-                this.stopMusic();
-                // 使用更穩定的低頻 Drone
-                const bassOsc = this.ctx.createOscillator(); bassOsc.type = 'sawtooth'; bassOsc.frequency.value = 55;
-                const bassGain = this.ctx.createGain(); bassGain.gain.value = 0.15;
-                const bassFilter = this.ctx.createBiquadFilter(); bassFilter.type = 'lowpass'; bassFilter.frequency.value = 120;
-                bassOsc.connect(bassFilter); bassFilter.connect(bassGain); bassGain.connect(this.masterGain);
-                bassOsc.start(); this.musicNodes.push(bassOsc);
-                
-                // 氛圍音
-                this.creepyInterval = setInterval(() => {
-                    if(Math.random() > 0.6) return;
-                    if(this.ctx.state === 'suspended') this.ctx.resume(); // 強制喚醒
-                    const freq = 200 + Math.random() * 600;
-                    this.playTone(freq, 'sine', 4, 0.03, freq*0.5);
-                }, 3000);
-            },
-            stopMusic: function() {
-                this.musicNodes.forEach(n => { try{n.stop();n.disconnect();}catch(e){} });
-                this.musicNodes = [];
-                if(this.creepyInterval) clearInterval(this.creepyInterval);
-            },
+
+            // 遊戲互動音效
             shoot: function(isSuper) { 
                 if(isSuper) {
                     this.playTone(600, 'sawtooth', 0.1, 0.15, 300); 
@@ -283,12 +374,34 @@
                 }
             },
             empty: function() { this.playTone(800, 'square', 0.05, 0.1); },
-            reload: function() { setTimeout(()=>this.playTone(600,'square',0.1,0.1),0); setTimeout(()=>this.playTone(500,'sine',0.2,0.1),1000); },
-            pickup: function() { this.playTone(400, 'sine', 0.1, 0.2); setTimeout(()=>this.playTone(600,'sine',0.2,0.2), 100); },
-            footstep: function() { this.playNoise(0.05, 0.1, 200); },
-            bossSpawn: function() { this.playTone(50, 'sawtooth', 3, 0.8, 20); this.playNoise(2, 0.5); } 
+            reload: function() { 
+                // 換彈音效
+                setTimeout(()=>this.playTone(600,'square',0.1,0.1),0); 
+                setTimeout(()=>this.playTone(500,'sine',0.2,0.1),1000); 
+            },
+            pickup: function() { 
+                // 拾取音效 (清脆)
+                this.playTone(523, 'sine', 0.1, 0.2); 
+                setTimeout(()=>this.playTone(784,'sine',0.2,0.2), 100); 
+            },
+            footstep: function() { 
+                // 腳步聲 (過濾過的噪音)
+                const src = this.ctx.createBufferSource();
+                const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.1, this.ctx.sampleRate);
+                const d = buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+                src.buffer = buf;
+                const f = this.ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=300;
+                const g = this.ctx.createGain(); g.gain.value=0.2;
+                src.connect(f); f.connect(g); g.connect(this.masterGain); src.start();
+            },
+            bossSpawn: function() { 
+                // Boss 出場 (警報感)
+                this.playTone(50, 'sawtooth', 3, 0.8, 20); 
+                this.playTone(40, 'square', 3, 0.5); 
+            } 
         };
 
+        // --- 貼圖生成 ---
         function generateTexture(type) {
             const s = 512; const c = document.createElement('canvas'); c.width = s; c.height = s; const ctx = c.getContext('2d');
             if (type === 'grass') { ctx.fillStyle = '#051105'; ctx.fillRect(0,0,s,s); }
@@ -307,46 +420,32 @@
             const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
         }
 
-        // --- 槍械模型生成器 ---
-
+        // --- 槍枝模型 ---
         function createWingmanModel() {
             const g = new THREE.Group();
-            const topBarrel = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.2, 0.8), matSilver);
-            topBarrel.position.set(0, 0.2, -0.6); g.add(topBarrel);
-            const botBarrel = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.15, 0.7), matWhite);
-            botBarrel.position.set(0, 0.05, -0.6); g.add(botBarrel);
-            const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.3, 8), matDark);
-            cylinder.rotation.z = Math.PI/2; cylinder.position.set(0, 0.2, -0.1); g.add(cylinder);
-            const grip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.15), matWood);
-            grip.rotation.x = -0.3; grip.position.set(0, -0.1, 0.2); g.add(grip);
-            const sight = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.1), matDark);
-            sight.position.set(0, 0.32, 0.1); g.add(sight);
-            const glow = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, 0.4), matGlow);
-            glow.position.set(0.08, 0.2, -0.6); glow.name = 'glowBar'; g.add(glow);
+            // 槍身
+            const top = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.2, 0.8), matSilver); top.position.set(0, 0.2, -0.6); g.add(top);
+            const bot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.15, 0.7), matWhite); bot.position.set(0, 0.05, -0.6); g.add(bot);
+            // 握把
+            const grip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.15), matWood); grip.rotation.x = -0.3; grip.position.set(0, -0.1, 0.2); g.add(grip);
+            // 發光瞄準
+            const glow = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, 0.4), matGlow); glow.position.set(0.08, 0.2, -0.6); g.add(glow);
             g.position.set(0.5, -0.5, -0.8);
             return g;
         }
 
         function createR301Model() {
             const g = new THREE.Group();
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.15, 1.2), matWhite);
-            body.position.set(0, 0.1, -0.6); g.add(body);
-            const accent = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.05, 0.6), matBlue);
-            accent.position.set(0, 0.1, -0.4); g.add(accent);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.8), matDark);
-            barrel.rotation.x = Math.PI/2; barrel.position.set(0, 0.1, -1.5); g.add(barrel);
-            const mag = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.4, 0.12), matDark);
-            mag.rotation.x = 0.3; mag.position.set(0, -0.2, -0.5); g.add(mag);
-            const grip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.35, 0.12), matDark);
-            grip.rotation.x = -0.2; grip.position.set(0, -0.2, -0.1); g.add(grip);
-            const stock = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.5), matDark);
-            stock.position.set(0, 0.05, 0.4); g.add(stock);
-            const scopeBase = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.2), matDark);
-            scopeBase.position.set(0, 0.2, -0.3); g.add(scopeBase);
-            const scopeGlass = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.1), matBlue);
-            scopeGlass.position.set(0, 0.25, -0.2); g.add(scopeGlass);
-            const info = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.08, 0.2), matGlow);
-            info.position.set(0.07, 0.1, -0.8); info.name = 'glowBar'; g.add(info);
+            // 長槍身
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.15, 1.2), matWhite); body.position.set(0, 0.1, -0.6); g.add(body);
+            // 藍色塗裝
+            const accent = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.05, 0.6), matBlue); accent.position.set(0, 0.1, -0.4); g.add(accent);
+            // 槍管
+            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.8), matDark); barrel.rotation.x = Math.PI/2; barrel.position.set(0, 0.1, -1.5); g.add(barrel);
+            // 彈匣
+            const mag = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.4, 0.12), matDark); mag.rotation.x = 0.3; mag.position.set(0, -0.2, -0.5); g.add(mag);
+            // 瞄具
+            const scope = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.2), matDark); scope.position.set(0, 0.2, -0.3); g.add(scope);
             g.position.set(0.5, -0.5, -0.8);
             return g;
         }
@@ -356,32 +455,36 @@
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x020202);
-            scene.fog = new THREE.FogExp2(0x020202, 0.008); 
+            scene.background = new THREE.Color(0x050505);
+            scene.fog = new THREE.FogExp2(0x050505, 0.015); // 霧氣更濃，增加氛圍
 
-            const ambient = new THREE.AmbientLight(0x333344, 0.4); scene.add(ambient);
-            const moon = new THREE.DirectionalLight(0xaaccff, 0.3); moon.position.set(50,100,50); scene.add(moon);
+            // 燈光
+            const ambient = new THREE.AmbientLight(0x222233, 0.5); scene.add(ambient);
+            const moon = new THREE.DirectionalLight(0x5555aa, 0.5); moon.position.set(50,100,50); scene.add(moon);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
             camera.position.y = 6; 
 
-            const pl = new THREE.SpotLight(0xffffff, 80, 200, 0.6, 0.5);
+            // 手電筒
+            const pl = new THREE.SpotLight(0xffffff, 80, 150, 0.6, 0.5);
             pl.position.set(0,0,0); pl.target.position.set(0,0,-1);
             camera.add(pl); camera.add(pl.target);
 
-            // 預設武器：Wingman
+            // 初始武器
             playerWeaponGroup = createWingmanModel();
             camera.add(playerWeaponGroup);
 
             controls = new PointerLockControls(camera, document.body);
             
+            // 事件監聽
             const startBtn = document.getElementById('start-btn');
             startBtn.addEventListener('click', () => { 
                 controls.lock(); 
-                if(!SoundGen.ctx) SoundGen.init(); else if(SoundGen.ctx.state === 'suspended') SoundGen.ctx.resume();
+                if(!SoundGen.ctx) SoundGen.init(); 
+                else if(SoundGen.ctx.state === 'suspended') SoundGen.ctx.resume();
             });
             controls.addEventListener('lock', () => { blocker.style.display = 'none'; });
-            controls.addEventListener('unlock', () => { if(player.hp>0) blocker.style.display = 'flex'; });
+            controls.addEventListener('unlock', () => { if(player.hp>0) blocker.style.display = 'flex'; SoundGen.stopMusic(); }); // 暫停時停止音樂
 
             scene.add(controls.getObject());
 
@@ -392,6 +495,7 @@
 
             raycaster = new THREE.Raycaster();
 
+            // 生成地板材質
             const gTex = generateTexture('grass'); gTex.repeat.set(50,50);
             floorMaterial = new THREE.MeshStandardMaterial({map: gTex, roughness: 0.9});
             stoneMaterial = new THREE.MeshStandardMaterial({map: generateTexture('stone'), roughness: 0.7});
@@ -408,6 +512,8 @@
             
             updateUI();
         }
+
+        // --- 核心邏輯區 ---
 
         function updateUI() {
             hpText.innerText = Math.floor(player.hp);
@@ -427,27 +533,22 @@
             }
         }
 
-        function checkBossSpawn() {
-            if (player.score >= bossState.nextSpawnScore && !bossState.active) {
-                spawnBoss();
-                bossState.nextSpawnScore += 400; 
-            }
-        }
-
         function reloadWeapon() {
             if (player.isReloading || player.ammo === player.maxMag || player.reserveAmmo === 0) return;
             player.isReloading = true;
             crosshair.classList.add('reloading');
             SoundGen.reload();
             
-            const startY = -0.5; // 復位位置
+            // 換彈動畫
             let p = 0;
             const interval = setInterval(() => {
                 p += 0.05;
                 if(player.isSuperWeapon) {
+                    // R301 動作
                     if(p < 0.5) { playerWeaponGroup.position.z += 0.05; playerWeaponGroup.rotation.x += 0.05; }
                     else { playerWeaponGroup.position.z -= 0.05; playerWeaponGroup.rotation.x -= 0.05; }
                 } else {
+                    // Wingman 動作
                     if(p < 0.5) { playerWeaponGroup.rotation.z += 0.2; playerWeaponGroup.rotation.x -= 0.1; }
                     else { playerWeaponGroup.rotation.z -= 0.2; playerWeaponGroup.rotation.x += 0.1; }
                 }
@@ -458,6 +559,7 @@
                     const take = Math.min(needed, player.reserveAmmo);
                     player.ammo += take; player.reserveAmmo -= take;
                     
+                    // 重置位置
                     playerWeaponGroup.rotation.set(0,0,0); 
                     playerWeaponGroup.position.set(0.5, -0.5, -0.8);
                     player.isReloading = false;
@@ -470,8 +572,10 @@
         function createEnvironment() {
             const floor = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000).rotateX(-Math.PI/2), floorMaterial);
             floor.receiveShadow = true; scene.add(floor);
-            const tGeo = new THREE.BoxGeometry(4, 7, 1);
-            const trGeo = new THREE.ConeGeometry(3, 20, 5);
+            
+            const tGeo = new THREE.BoxGeometry(4, 7, 1); // 墓碑
+            const trGeo = new THREE.ConeGeometry(3, 20, 5); // 枯樹
+            
             for(let i=0; i<250; i++) {
                 const x = (Math.random()-0.5)*800, z = (Math.random()-0.5)*800;
                 if(Math.abs(x)<50 && Math.abs(z)<50) continue;
@@ -487,14 +591,19 @@
             const max = 10 + Math.floor(player.score/200);
             if (enemyUnits.length > max) return;
             const g = new THREE.Group();
+            
+            // 敵人外型
             const body = new THREE.Mesh(new THREE.ConeGeometry(3, 8, 8, 1, true), 
                 new THREE.MeshStandardMaterial({color: 0x88ffff, emissive: 0x004444, transparent: true, opacity: 0.7, side: THREE.DoubleSide}));
             body.position.y = 4; g.add(body);
+            
             const head = new THREE.Mesh(new THREE.SphereGeometry(2), body.material);
             head.position.y = 8; g.add(head);
+            
             const eye = new THREE.Mesh(new THREE.SphereGeometry(0.5), new THREE.MeshBasicMaterial({color:0xff0000}));
             const le = eye.clone(); le.position.set(-0.8, 8.5, 1.5); g.add(le);
             const re = eye.clone(); re.position.set(0.8, 8.5, 1.5); g.add(re);
+
             spawnUnit(g, 100 + (player.score/20), 12 + Math.random()*8, 'normal');
         }
 
@@ -504,24 +613,24 @@
             SoundGen.bossSpawn();
             bossWarning.style.display = 'block';
             setTimeout(() => bossWarning.style.display = 'none', 4000);
+            
             const level = bossState.count;
-            const multiplier = 1 + (level * 0.5); 
+            const mult = 1 + (level * 0.5); 
+            
             const g = new THREE.Group();
-            const mat = new THREE.MeshStandardMaterial({ color: 0x660000, roughness: 0.3, metalness: 0.8, emissive: 0x550000, emissiveIntensity: 0.8 });
-            const body = new THREE.Mesh(new THREE.CylinderGeometry(5*multiplier, 3*multiplier, 15*multiplier, 6), mat);
-            body.position.y = 7.5*multiplier; g.add(body);
-            const head = new THREE.Mesh(new THREE.DodecahedronGeometry(4*multiplier), mat);
-            head.position.y = 16*multiplier; g.add(head);
-            const eyeGeo = new THREE.BoxGeometry(1*multiplier, 0.5*multiplier, 1*multiplier);
-            const eyeMat = new THREE.MeshBasicMaterial({color: 0xff0000});
-            const le = new THREE.Mesh(eyeGeo, eyeMat); le.position.set(-2*multiplier, 16*multiplier, 3*multiplier);
-            const re = new THREE.Mesh(eyeGeo, eyeMat); re.position.set(2*multiplier, 16*multiplier, 3*multiplier);
-            g.add(le); g.add(re);
-            const halo = new THREE.Mesh(new THREE.TorusGeometry(6*multiplier, 0.5, 16, 50), new THREE.MeshBasicMaterial({color:0xff0000}));
-            halo.rotation.x = Math.PI/2; halo.position.y = 22*multiplier; halo.name = "halo"; g.add(halo);
-            const light = new THREE.PointLight(0xff0000, 5, 40*multiplier);
-            light.position.y = 10; g.add(light);
-            const hp = 800 * multiplier;
+            const mat = new THREE.MeshStandardMaterial({ color: 0x440000, roughness: 0.3, metalness: 0.8, emissive: 0x550000 });
+            
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(5*mult, 3*mult, 15*mult, 6), mat);
+            body.position.y = 7.5*mult; g.add(body);
+            
+            const head = new THREE.Mesh(new THREE.DodecahedronGeometry(4*mult), mat);
+            head.position.y = 16*mult; g.add(head);
+            
+            // 光環
+            const halo = new THREE.Mesh(new THREE.TorusGeometry(6*mult, 0.5, 16, 50), new THREE.MeshBasicMaterial({color:0xff0000}));
+            halo.rotation.x = Math.PI/2; halo.position.y = 22*mult; halo.name = "halo"; g.add(halo);
+
+            const hp = 800 * mult;
             const unit = spawnUnit(g, hp, (18 + (level * 2)), 'boss');
             unit.maxHp = hp; bossState.unit = unit;
             bossLvlUi.innerText = level; bossTracker.style.display = 'block';
@@ -538,25 +647,22 @@
         }
 
         function spawnDrop(pos) {
-            // --- 修正：大幅提高掉落率 ---
-            // 現在有 50% 機率是武器箱
-            const isWeapon = Math.random() < 0.5; 
+            // --- 掉落邏輯：15% 槍, 85% 彈藥 ---
+            const isWeapon = Math.random() < 0.15; 
             const mesh = new THREE.Mesh(
                 isWeapon ? new THREE.BoxGeometry(1,1,3) : new THREE.BoxGeometry(2,2,2),
                 isWeapon ? weaponDropMat : ammoMat
             );
             mesh.userData = { 
                 type: isWeapon?'weapon':'ammo', 
-                label: isWeapon?'[R-301 卡賓槍]':'彈藥箱',
+                label: isWeapon?'[R-301 CARBINE]':'彈藥補給',
                 rotateSpeed: isWeapon?3:1 
             };
             mesh.position.copy(pos); mesh.position.y = 3;
             
-            // 增加光柱效果，確保玩家看得到
             const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 50, 8), 
                 new THREE.MeshBasicMaterial({color: isWeapon?0xffff00:0x00ff00, transparent:true, opacity:0.3}));
-            beam.position.y = 25;
-            mesh.add(beam);
+            beam.position.y = 25; mesh.add(beam);
             
             scene.add(mesh); dropItems.push(mesh);
         }
@@ -583,12 +689,15 @@
         function onMouseDown() {
             if(!controls.isLocked || player.hp<=0 || player.isReloading) return;
             if(player.ammo <= 0) { SoundGen.empty(); reloadWeapon(); return; }
+            
+            // 射速限制
             if(performance.now() - lastShootTime < (player.isSuperWeapon ? 100 : 400)) return; 
             lastShootTime = performance.now();
 
             SoundGen.shoot(player.isSuperWeapon);
             player.ammo--; updateUI();
             
+            // 後座力動畫
             const recoilZ = player.isSuperWeapon ? 0.1 : 0.3;
             playerWeaponGroup.position.z += recoilZ; 
             playerWeaponGroup.rotation.x += (player.isSuperWeapon ? 0.05 : 0.15);
@@ -597,9 +706,11 @@
                 playerWeaponGroup.rotation.x -= (player.isSuperWeapon ? 0.05 : 0.15);
             }, 80);
 
+            // 槍口閃光
             const flash = new THREE.PointLight(player.isSuperWeapon?0x0088ff:0xffaa00, 5, 20);
             flash.position.set(0.5, -0.4, -2); camera.add(flash); setTimeout(()=>camera.remove(flash), 50);
 
+            // 射線檢測
             raycaster.setFromCamera(new THREE.Vector2(), camera);
             const targets = [];
             enemyUnits.forEach(u => u.group.children.forEach(c => targets.push(c)));
@@ -615,6 +726,8 @@
         function hitEnemy(idx) {
             const unit = enemyUnits[idx];
             unit.hp -= player.damage;
+            
+            // 受傷閃爍
             unit.group.children.forEach(m => {
                 if(m.material && m.material.emissive) {
                     const old = m.material.emissive.getHex();
@@ -622,6 +735,7 @@
                     setTimeout(()=> m.material.emissive.setHex(old), 50);
                 }
             });
+
             if(unit.hp <= 0) {
                 if (unit.type === 'boss') {
                     bossState.active = false; bossState.unit = null; bossTracker.style.display = 'none';
@@ -629,11 +743,15 @@
                     spawnDrop(unit.group.position); spawnDrop(unit.group.position); 
                 } else {
                     player.score += 100;
-                    // --- 修正：提高掉落機率到 50% ---
-                    if(Math.random() < 0.5) spawnDrop(unit.group.position); 
+                    if(Math.random() < 0.3) spawnDrop(unit.group.position); // 30% 掉寶率
                 }
                 scene.remove(unit.group); enemyUnits.splice(idx, 1);
-                checkBossSpawn(); updateUI();
+                
+                // 檢查是否生成 Boss
+                if (player.score >= bossState.nextSpawnScore && !bossState.active) {
+                    spawnBoss(); bossState.nextSpawnScore += 400; 
+                }
+                updateUI();
             }
         }
 
@@ -646,6 +764,7 @@
                     if(item.userData.type === 'ammo') {
                         player.reserveAmmo += player.isSuperWeapon ? 60 : 12;
                     } else {
+                        // 獲得神武 R-301
                         player.isSuperWeapon = true;
                         player.damage = 25; 
                         player.maxMag = 28;
@@ -663,37 +782,18 @@
             }
         }
 
-        function updateBossUI() {
-            if (!bossState.active || !bossState.unit) { bossTracker.style.display = 'none'; return; }
-            const boss = bossState.unit;
-            const hpPercent = Math.max(0, (boss.hp / boss.maxHp) * 100);
-            bossHpFill.style.width = hpPercent + '%';
-            const headPos = boss.group.position.clone();
-            headPos.y += (boss.type === 'boss' ? 25 : 10); 
-            headPos.project(camera);
-            if (headPos.z < 1) {
-                const x = (headPos.x * .5 + .5) * window.innerWidth;
-                const y = (-(headPos.y * .5) + .5) * window.innerHeight;
-                bossTracker.style.display = 'block';
-                bossTracker.style.transform = `translate(${x - 110}px, ${y - 120}px)`;
-                const dist = Math.floor(boss.group.position.distanceTo(camera.position));
-                bossDistEl.innerText = `DIST: ${dist}m`;
-                if (hpPercent < 30) { bossHpFill.style.backgroundColor = '#ffcc00'; } 
-                else { bossHpFill.style.backgroundColor = '#ff0000'; }
-            } else { bossTracker.style.display = 'none'; }
-        }
-
         function animate() {
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
             const time = performance.now();
             
-            // --- 音效修復：強制喚醒 ---
-            if(SoundGen.ctx && SoundGen.ctx.state === 'suspended') {
+            // 確保 AudioContext 運行
+            if(SoundGen.ctx && SoundGen.ctx.state === 'suspended' && controls.isLocked) {
                 SoundGen.ctx.resume();
             }
 
             if (controls.isLocked && player.hp > 0) {
+                // 物理移動計算
                 velocity.x -= velocity.x * 10.0 * delta;
                 velocity.z -= velocity.z * 10.0 * delta;
                 velocity.y -= 9.8 * 100.0 * delta;
@@ -714,29 +814,52 @@
                 }
 
                 const pPos = controls.getObject().position;
+                
+                // 敵人行為
                 enemyUnits.forEach(u => {
                     u.group.lookAt(pPos.x, u.group.position.y, pPos.z);
                     const dist = u.group.position.distanceTo(pPos);
-                    if (u.type === 'normal') { u.group.position.y = Math.sin(time * 0.003 + u.floatOffset) * 0.5; }
+                    
+                    if (u.type === 'normal') u.group.position.y = Math.sin(time * 0.003 + u.floatOffset) * 0.5;
+                    
                     if (dist > (u.type==='boss'?15:8)) {
                         const dir = new THREE.Vector3().subVectors(pPos, u.group.position).normalize();
                         u.group.position.add(dir.multiplyScalar(u.speed * delta));
                     } else {
+                        // 攻擊玩家
                         player.hp -= delta * (u.type==='boss'?50:20);
                         updateUI();
                         if(player.hp <= 0) {
                             controls.unlock();
                             blocker.style.display = 'flex';
                             SoundGen.stopMusic();
-                            document.getElementById('start-btn').innerHTML = "<h1 style='color:red'>MISSION FAILED</h1><p>重新整理頁面再來一次</p>";
+                            document.getElementById('start-btn').innerHTML = "<h1 style='color:red'>YOU DIED</h1>";
                         }
                     }
                     if(u.type === 'boss') {
                         const halo = u.group.getObjectByName('halo');
                         if(halo) { halo.rotation.z += delta * 2; halo.rotation.x = Math.PI/2 + Math.sin(time*0.002)*0.5; }
+                        
+                        // 更新 Boss 血條 UI 位置
+                        if(bossState.active && bossState.unit === u) {
+                            const hpPercent = Math.max(0, (u.hp / u.maxHp) * 100);
+                            bossHpFill.style.width = hpPercent + '%';
+                            bossDistEl.innerText = Math.floor(dist) + 'm';
+                            
+                            // 投影 Boss 位置到螢幕
+                            const headPos = u.group.position.clone(); headPos.y += 20;
+                            headPos.project(camera);
+                            if(headPos.z < 1) {
+                                const x = (headPos.x * .5 + .5) * window.innerWidth;
+                                const y = (-(headPos.y * .5) + .5) * window.innerHeight;
+                                bossTracker.style.display = 'block';
+                                bossTracker.style.transform = `translate(${x - 100}px, ${y - 100}px)`;
+                            } else { bossTracker.style.display = 'none'; }
+                        }
                     }
                 });
 
+                // 掉落物互動檢測
                 let closest = 10, target = null;
                 dropItems.forEach(i => {
                     i.rotation.y += delta * i.userData.rotateSpeed;
@@ -748,17 +871,15 @@
                 if(focusItem) {
                     interactiveMsg.style.display = 'block';
                     interactiveMsg.style.color = focusItem.userData.type === 'weapon' ? '#ffcc00' : '#00ffff'; 
-                    interactiveMsg.style.borderColor = focusItem.userData.type === 'weapon' ? '#ffcc00' : 'cyan';
                     interactiveMsg.innerText = `[E] 拾取 ${focusItem.userData.label}`;
                 } else if (player.ammo > 0) { interactiveMsg.style.display = 'none'; }
 
+                // 生怪邏輯
                 if (!bossState.active) {
-                    checkBossSpawn(); 
-                    if (Math.random() < 0.02 && enemyUnits.length < 10) spawnGhost();
+                     if (Math.random() < 0.02 && enemyUnits.length < 10) spawnGhost();
                 } else {
                     if (Math.random() < 0.005 && enemyUnits.length < 5) spawnGhost();
                 }
-                updateBossUI();
             }
             renderer.render(scene, camera);
         }
