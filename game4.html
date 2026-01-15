@@ -2,37 +2,41 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Advanced Three.js FPS Shooter</title>
+    <title>Graveyard Shooter 3D</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Courier New', Courier, monospace; }
+        body { margin: 0; overflow: hidden; font-family: 'Courier New', Courier, monospace; background-color: #000; }
         #blocker {
             position: absolute; width: 100%; height: 100%;
-            background-color: rgba(0,0,0,0.7);
+            background-color: rgba(0,0,0,0.8);
             display: flex; flex-direction: column;
             justify-content: center; align-items: center;
-            color: #ffffff; z-index: 999;
+            color: #ff0000; z-index: 999;
         }
-        #instructions { font-size: 30px; cursor: pointer; text-align: center; }
+        #instructions { font-size: 30px; cursor: pointer; text-align: center; text-shadow: 2px 2px 4px #000; }
         #ui {
-            position: absolute; top: 10px; left: 10px; color: #00ff00;
-            font-size: 20px; font-weight: bold; pointer-events: none;
-            text-shadow: 1px 1px 2px black;
+            position: absolute; top: 10px; left: 10px; color: #ff3333;
+            font-size: 24px; font-weight: bold; pointer-events: none;
+            text-shadow: 2px 2px 4px black;
         }
+        /* 準心樣式 */
         #crosshair {
             position: absolute; top: 50%; left: 50%;
-            width: 20px; height: 20px;
+            width: 24px; height: 24px;
             background: transparent;
-            border: 2px solid rgba(0, 255, 0, 0.8);
+            border: 2px solid rgba(255, 50, 50, 0.7);
             border-radius: 50%;
             transform: translate(-50%, -50%);
             pointer-events: none;
         }
         #crosshair::after {
             content: ''; position: absolute; top: 50%; left: 50%;
-            width: 4px; height: 4px; background: red;
+            width: 6px; height: 6px; background: #ff0000;
             transform: translate(-50%, -50%); border-radius: 50%;
+            box-shadow: 0 0 10px #ff0000;
         }
+        #loading { position: absolute; bottom: 20px; left: 20px; color: white; }
     </style>
+    
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
     
     <script type="importmap">
@@ -46,252 +50,380 @@
 </head>
 <body>
     <div id="ui">
-        SCORE: <span id="score">0</span> | HEALTH: <span id="health">100</span>
+        KILLS: <span id="score">0</span> | SANITY: <span id="health">100</span>%
     </div>
     <div id="crosshair"></div>
+    <div id="loading">正在加載 3D 模型資源...</div>
     
     <div id="blocker">
         <div id="instructions">
-            <p style="font-size:40px">點擊畫面開始遊戲</p>
-            <p>移動: W, A, S, D</p>
-            <p>跳躍: SPACE</p>
-            <p>射擊: 滑鼠左鍵</p>
+            <p style="font-size:50px; letter-spacing: 5px;">墳場獵人</p>
+            <p>點擊進入黑暗</p>
+            <p>W, A, S, D 移動 | 空白鍵 跳躍 | 滑鼠左鍵 射擊</p>
+            <p style="font-size: 18px; color: #888;">(需要穩定網絡加載外部模型)</p>
         </div>
     </div>
 
     <script type="module">
         import * as THREE from 'three';
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+        // 引入 GLTFLoader 用於加載模型
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
         // --- 全局變數設置 ---
         let camera, scene, renderer, controls;
         let raycaster;
+        const clock = new THREE.Clock(); // 用於動畫計時
         
-        // 移動相關變數
         const velocity = new THREE.Vector3();
         const direction = new THREE.Vector3();
         let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
         let canJump = false;
         
         // 遊戲邏輯變數
-        let prevTime = performance.now();
-        const enemies = [];
+        // 我們需要一個結構來儲存敵人的 Mesh 和它的動畫 Mixer
+        let enemyUnits = []; 
         let score = 0;
         let health = 100;
         let lastShootTime = 0;
+        let playerWeapon; // 玩家手中的武器模型
+        let ghostModelTemplate = null; // 鬼怪模型模板
+        let ghostAnimations = null;
         
-        // HTML 元素
         const scoreEl = document.getElementById('score');
         const healthEl = document.getElementById('health');
         const blocker = document.getElementById('blocker');
-        const instructions = document.getElementById('instructions');
+        const loadingEl = document.getElementById('loading');
+
+        // 外部模型 URL (使用公共 CDN 資源作為範例，可能會因網絡問題失效)
+        // 武器模型 (一個簡單的科幻爆能槍)
+        const WEAPON_URL = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/BoomBox/glTF-Binary/BoomBox.glb'; // 暫時用這個代替槍，因為找不到穩定的免費槍枝直連。它會被縮小放在手上。
+        // 敵人模型 (一個帶有動畫的角色，我們將其改造為鬼魂)
+        const ENEMY_URL = 'https://threejs.org/examples/models/gltf/Soldier.glb'; 
 
         init();
         animate();
 
         function init() {
-            // 1. 初始化場景
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x111111); // 深色背景
-            scene.fog = new THREE.Fog(0x111111, 0, 750); // 迷霧效果增強深度感
+            // 恐怖氛圍核心：黑色背景加上濃重的指數霧
+            scene.background = new THREE.Color(0x050505);
+            scene.fog = new THREE.FogExp2(0x050505, 0.03); 
 
-            // 2. 設置燈光
-            const light = new THREE.HemisphereLight(0xeeeeff, 0x777788, 0.75);
-            light.position.set(0.5, 1, 0.75);
-            scene.add(light);
+            // --- 燈光設置 (恐怖風格) ---
+            // 微弱的冷色環境光
+            const ambientLight = new THREE.AmbientLight(0x222244, 0.5);
+            scene.add(ambientLight);
             
-            // 點光源模擬太陽/主要光源
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            dirLight.position.set(100, 100, 50);
-            dirLight.castShadow = true;
-            scene.add(dirLight);
+            // 模擬月光 (冷藍色，製造陰影)
+            const moonLight = new THREE.DirectionalLight(0x444488, 1);
+            moonLight.position.set(50, 100, 50);
+            moonLight.castShadow = true;
+            // 優化陰影貼圖
+            moonLight.shadow.mapSize.width = 2048;
+            moonLight.shadow.mapSize.height = 2048;
+            moonLight.shadow.camera.near = 0.5;
+            moonLight.shadow.camera.far = 500;
+            moonLight.shadow.camera.left = -100;
+            moonLight.shadow.camera.right = 100;
+            moonLight.shadow.camera.top = 100;
+            moonLight.shadow.camera.bottom = -100;
+            scene.add(moonLight);
 
-            // 3. 設置相機
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
-            camera.position.y = 10; // 玩家高度
+            // --- 相機與控制 ---
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
+            camera.position.y = 12; // 稍微提高視角
 
-            // 4. 控制器 (FPS 視角)
             controls = new PointerLockControls(camera, document.body);
 
-            instructions.addEventListener('click', function () {
-                controls.lock();
-            });
-
-            controls.addEventListener('lock', function () {
-                instructions.style.display = 'none';
-                blocker.style.display = 'none';
-            });
-
-            controls.addEventListener('unlock', function () {
-                blocker.style.display = 'flex';
-                instructions.style.display = '';
-            });
-
+            const instructions = document.getElementById('instructions');
+            instructions.addEventListener('click', function () { controls.lock(); });
+            controls.addEventListener('lock', function () { instructions.style.display = 'none'; blocker.style.display = 'none'; });
+            controls.addEventListener('unlock', function () { blocker.style.display = 'flex'; instructions.style.display = ''; });
             scene.add(controls.getObject());
 
-            // 5. 鍵盤事件監聽
-            const onKeyDown = function (event) {
-                switch (event.code) {
-                    case 'ArrowUp': case 'KeyW': moveForward = true; break;
-                    case 'ArrowLeft': case 'KeyA': moveLeft = true; break;
-                    case 'ArrowDown': case 'KeyS': moveBackward = true; break;
-                    case 'ArrowRight': case 'KeyD': moveRight = true; break;
-                    case 'Space': if (canJump === true) velocity.y += 350; canJump = false; break;
-                }
-            };
-
-            const onKeyUp = function (event) {
-                switch (event.code) {
-                    case 'ArrowUp': case 'KeyW': moveForward = false; break;
-                    case 'ArrowLeft': case 'KeyA': moveLeft = false; break;
-                    case 'ArrowDown': case 'KeyS': moveBackward = false; break;
-                    case 'ArrowRight': case 'KeyD': moveRight = false; break;
-                }
-            };
-
+            // --- 事件監聽 ---
             document.addEventListener('keydown', onKeyDown);
             document.addEventListener('keyup', onKeyUp);
-            document.addEventListener('mousedown', onMouseDown); // 射擊
+            document.addEventListener('mousedown', onMouseDown);
+            window.addEventListener('resize', onWindowResize);
 
-            // 6. 射線 (用於射擊判定)
             raycaster = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, - 1, 0), 0, 10);
 
-            // 7. 構建環境 (地板)
-            const floorGeometry = new THREE.PlaneGeometry(2000, 2000, 100, 100);
-            floorGeometry.rotateX(- Math.PI / 2);
-            const floorMaterial = new THREE.MeshStandardMaterial({ 
-                color: 0x222222,
-                wireframe: false
-            });
-            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-            scene.add(floor);
-            
-            // 添加地板網格輔助線
-            const gridHelper = new THREE.GridHelper(2000, 100, 0x00ff00, 0x444444);
-            scene.add(gridHelper);
+            // --- 環境構建 (墳場) ---
+            createGraveyardEnvironment();
 
-            // 8. 隨機生成一些障礙物
-            const boxGeometry = new THREE.BoxGeometry(20, 20, 20);
-            const boxMaterial = new THREE.MeshStandardMaterial({ color: 0x4444aa });
-
-            for (let i = 0; i < 50; i++) {
-                const box = new THREE.Mesh(boxGeometry, boxMaterial);
-                box.position.x = Math.floor(Math.random() * 20 - 10) * 40;
-                box.position.y = 10;
-                box.position.z = Math.floor(Math.random() * 20 - 10) * 40;
-                scene.add(box);
+            // --- 資源加載 (模型) ---
+            const loader = new GLTFLoader();
+            let itemsLoaded = 0;
+            function checkLoading() {
+                itemsLoaded++;
+                if (itemsLoaded === 2) loadingEl.style.display = 'none';
             }
 
-            // 9. 渲染器設置
+            // 1. 加載玩家武器
+            loader.load(WEAPON_URL, (gltf) => {
+                playerWeapon = gltf.scene;
+                // 調整武器大小和位置，使其看起來像拿在手裡
+                // 注意：這裡因為找不到好的槍模型 URL，用了一個替代品，我將它縮小並調整位置。
+                playerWeapon.scale.set(100, 100, 100); 
+                playerWeapon.position.set(1.5, -1.5, -2.5); // 位於相機右下方
+                playerWeapon.rotation.y = Math.PI; // 調整角度指向前方
+                
+                // **關鍵：將武器添加到相機中，而不是場景中**
+                // 這樣它就會跟隨玩家的視角移動
+                camera.add(playerWeapon);
+                checkLoading();
+            }, undefined, (error) => { console.error('Weapon connect error:', error); loadingEl.innerText = "武器加載失敗(網絡錯誤)"; });
+
+            // 2. 預加載敵人(鬼魂)模板和動畫
+            loader.load(ENEMY_URL, (gltf) => {
+                const model = gltf.scene;
+                ghostAnimations = gltf.animations; // 儲存動畫片段
+                
+                // 將模型材質改為「鬼魂」樣式 (半透明發光藍色)
+                model.traverse((child) => {
+                    if (child.isMesh) {
+                        child.material = new THREE.MeshStandardMaterial({
+                            color: 0x66ffff,
+                            emissive: 0x224444, // 自發光
+                            transparent: true,
+                            opacity: 0.7,
+                            roughness: 0.1,
+                            metalness: 0.8
+                        });
+                        child.castShadow = true;
+                    }
+                });
+                
+                // 調整一下原始模型的大小
+                model.scale.set(7, 7, 7);
+                ghostModelTemplate = model; // 儲存為模板
+                checkLoading();
+            }, undefined, (error) => { console.error('Enemy connect error:', error); loadingEl.innerText = "敵人加載失敗(網絡錯誤)"; });
+
+            // --- 渲染器設置 ---
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.enabled = true; // 啟用陰影
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 柔和陰影
+            renderer.outputColorSpace = THREE.SRGBColorSpace; // 正確的色彩空間
             document.body.appendChild(renderer.domElement);
-
-            window.addEventListener('resize', onWindowResize);
         }
 
-        // --- 射擊邏輯 ---
-        function onMouseDown(event) {
-            if (!controls.isLocked) return;
+        // --- 創建墳場環境 ---
+        function createGraveyardEnvironment() {
+            // 地面 (深色泥土/草地)
+            const floorGeometry = new THREE.PlaneGeometry(1000, 1000, 100, 100);
+            floorGeometry.rotateX(- Math.PI / 2);
+            // 稍微擾動地面頂點製造起伏
+            const positionAttribute = floorGeometry.attributes.position;
+            for ( let i = 0; i < positionAttribute.count; i ++ ) {
+                 // 只修改 Y 軸
+                 if (positionAttribute.getY(i) === 0) {
+                    positionAttribute.setY( i, Math.random() * 2); 
+                 }
+            }
+            floorGeometry.computeVertexNormals();
 
-            // 簡單的冷卻時間
-            const now = performance.now();
-            if (now - lastShootTime < 200) return; 
-            lastShootTime = now;
+            const floorMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x1a1a1a, // 深灰色
+                roughness: 0.9,
+                metalness: 0.1
+            });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.receiveShadow = true;
+            scene.add(floor);
 
-            // 視覺效果：槍口閃光 (簡單模擬)
-            const flash = new THREE.PointLight(0xffaa00, 1, 30);
-            flash.position.set(0, -1, -2);
-            camera.add(flash);
-            setTimeout(() => camera.remove(flash), 50);
+            // 隨機生成墓碑和枯樹
+            const tombGeo = new THREE.BoxGeometry(4, 8, 2);
+            const tombMat = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 1 });
+            
+            const treeGeo = new THREE.ConeGeometry(3, 20, 5);
+            const treeMat = new THREE.MeshStandardMaterial({ color: 0x221100, roughness: 1 });
 
-            // 射線檢測
-            const shootRaycaster = new THREE.Raycaster();
-            shootRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera); // 從螢幕中心發射
+            for (let i = 0; i < 150; i++) {
+                // 墓碑
+                const tomb = new THREE.Mesh(tombGeo, tombMat);
+                tomb.position.x = (Math.random() - 0.5) * 800;
+                tomb.position.z = (Math.random() - 0.5) * 800;
+                tomb.position.y = 4;
+                tomb.rotation.y = Math.random() * 0.5;
+                tomb.rotation.x = (Math.random() - 0.5) * 0.2; // 稍微傾斜
+                tomb.castShadow = true;
+                tomb.receiveShadow = true;
+                scene.add(tomb);
 
-            const intersects = shootRaycaster.intersectObjects(enemies);
-
-            if (intersects.length > 0) {
-                // 擊中敵人
-                const hitEnemy = intersects[0].object;
-                scene.remove(hitEnemy); // 移除敵人
+                // 偶爾添加枯樹
+                if (i % 5 === 0) {
+                     const tree = new THREE.Mesh(treeGeo, treeMat);
+                     tree.position.x = (Math.random() - 0.5) * 800;
+                     tree.position.z = (Math.random() - 0.5) * 800;
+                     tree.position.y = 10;
+                     tree.castShadow = true;
+                     scene.add(tree);
+                }
                 
-                // 從陣列中移除
-                const index = enemies.indexOf(hitEnemy);
-                if (index > -1) enemies.splice(index, 1);
-                
-                score += 100;
-                scoreEl.innerText = score;
-                
-                // 擊中特效
-                createExplosion(intersects[0].point);
+                // 偶爾添加詭異的點光源 (鬼火)
+                if (i % 20 === 0) {
+                    const spookyLight = new THREE.PointLight(0x00ff00, 1, 50);
+                    spookyLight.position.set(tomb.position.x, 8, tomb.position.z);
+                    scene.add(spookyLight);
+                }
             }
         }
 
-        function createExplosion(position) {
-            // 這裡可以做更複雜的粒子系統，暫時用紅色方塊代替爆炸
-            const geometry = new THREE.BoxGeometry(2, 2, 2);
-            const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-            const particle = new THREE.Mesh(geometry, material);
-            particle.position.copy(position);
-            scene.add(particle);
+        function onKeyDown(event) {
+            switch (event.code) {
+                case 'KeyW': moveForward = true; break;
+                case 'KeyA': moveLeft = true; break;
+                case 'KeyS': moveBackward = true; break;
+                case 'KeyD': moveRight = true; break;
+                case 'Space': if (canJump === true) velocity.y += 250; canJump = false; break;
+            }
+        }
+        function onKeyUp(event) {
+            switch (event.code) {
+                case 'KeyW': moveForward = false; break;
+                case 'KeyA': moveLeft = false; break;
+                case 'KeyS': moveBackward = false; break;
+                case 'KeyD': moveRight = false; break;
+            }
+        }
+
+        function onMouseDown(event) {
+            if (!controls.isLocked || health <= 0) return;
+            const now = performance.now();
+            if (now - lastShootTime < 250) return; // 射速限制
+            lastShootTime = now;
+
+            // 槍口火光
+            const flash = new THREE.PointLight(0x00ffff, 2, 20);
+            flash.position.set(1.5, -1, -3);
+            camera.add(flash);
+            setTimeout(() => camera.remove(flash), 50);
             
-            // 簡單動畫：縮小並消失
+            // 簡單的武器後坐力動畫
+            if(playerWeapon) {
+                playerWeapon.position.z += 0.2;
+                setTimeout(() => { playerWeapon.position.z -= 0.2; }, 100);
+            }
+
+            // 射線檢測
+            const shootRaycaster = new THREE.Raycaster();
+            shootRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+
+            // 檢測是否擊中任何敵人的模型
+            const enemyMeshes = enemyUnits.map(u => u.mesh);
+            const intersects = shootRaycaster.intersectObjects(enemyMeshes, true); // true 表示遞歸檢測子物件
+
+            if (intersects.length > 0) {
+                // 找到被擊中的根物體
+                let hitObject = intersects[0].object;
+                // 向上遍歷直到找到我們定義的敵人根節點
+                while(hitObject.parent && hitObject.parent.type !== 'Scene') {
+                    hitObject = hitObject.parent;
+                }
+                
+                // 找到對應的敵人資料單元
+                const hitUnitIndex = enemyUnits.findIndex(u => u.mesh === hitObject);
+                if (hitUnitIndex > -1) {
+                    destroyEnemy(hitUnitIndex);
+                }
+            }
+        }
+
+        function destroyEnemy(index) {
+            const unit = enemyUnits[index];
+            scene.remove(unit.mesh);
+            // 停止動畫混合器
+            unit.mixer.stopAllAction();
+            enemyUnits.splice(index, 1);
+            score++;
+            scoreEl.innerText = score;
+            
+            // 擊殺特效 (簡單的藍色爆炸)
+            const geometry = new THREE.IcosahedronGeometry(3, 0);
+            const material = new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true });
+            const explosion = new THREE.Mesh(geometry, material);
+            explosion.position.copy(unit.mesh.position);
+            scene.add(explosion);
             let scale = 1.0;
-            const animateExplosion = () => {
-                scale -= 0.1;
-                particle.scale.set(scale, scale, scale);
-                if (scale > 0) requestAnimationFrame(animateExplosion);
-                else scene.remove(particle);
+            const animExp = () => {
+                scale += 0.2;
+                explosion.scale.set(scale, scale, scale);
+                explosion.material.opacity -= 0.05;
+                if (scale < 5) requestAnimationFrame(animExp);
+                else scene.remove(explosion);
             };
-            animateExplosion();
+            animExp();
         }
 
-        // --- 敵人生成與 AI ---
+        // --- 敵人生成 ---
         function spawnEnemy() {
-            if (enemies.length > 10) return; // 限制數量
+            if (!ghostModelTemplate || enemyUnits.length > 15) return; 
 
-            const geometry = new THREE.DodecahedronGeometry(10); // 多面體作為敵人
-            const material = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.2, metalness: 0.5 });
-            const enemy = new THREE.Mesh(geometry, material);
+            // 複製模板
+            const enemyMesh = ghostModelTemplate.clone();
+            
+            // 創建獨立的動畫混合器
+            const mixer = new THREE.AnimationMixer(enemyMesh);
+            // 獲取第一個動畫片段 (通常是走路或待機)
+            // 注意：加載的 Soldier 模型第一個動畫是 Idle，第二個是 Walk (索引1)
+            const clip = ghostAnimations[1] || ghostAnimations[0]; 
+            if (clip) {
+                const action = mixer.clipAction(clip);
+                action.play();
+            }
 
-            // 隨機位置 (遠離玩家)
+            // 隨機位置生成在玩家周圍
             const angle = Math.random() * Math.PI * 2;
-            const radius = 100 + Math.random() * 200;
-            enemy.position.x = controls.getObject().position.x + Math.cos(angle) * radius;
-            enemy.position.z = controls.getObject().position.z + Math.sin(angle) * radius;
-            enemy.position.y = 10;
+            const radius = 150 + Math.random() * 200;
+            enemyMesh.position.x = controls.getObject().position.x + Math.cos(angle) * radius;
+            enemyMesh.position.z = controls.getObject().position.z + Math.sin(angle) * radius;
+            enemyMesh.position.y = 0; // 在地面上
 
-            scene.add(enemy);
-            enemies.push(enemy);
+            scene.add(enemyMesh);
+            // 儲存敵人資料單元
+            enemyUnits.push({ mesh: enemyMesh, mixer: mixer, speed: 20 + Math.random() * 15 });
         }
 
-        function updateEnemies(delta) {
+        function updateGameState(delta) {
             const playerPos = controls.getObject().position;
             
-            enemies.forEach(enemy => {
-                // 簡單 AI：朝向玩家移動
-                const direction = new THREE.Vector3().subVectors(playerPos, enemy.position).normalize();
-                enemy.position.add(direction.multiplyScalar(30 * delta)); // 移動速度
-                enemy.rotation.x += 2 * delta;
-                enemy.rotation.y += 2 * delta;
+            // 更新所有敵人
+            enemyUnits.forEach((unit, index) => {
+                // 1. 更新動畫
+                if (unit.mixer) unit.mixer.update(delta);
 
-                // 碰撞檢測 (敵人碰到玩家)
-                if (enemy.position.distanceTo(playerPos) < 15) {
-                    health -= 1;
-                    healthEl.innerText = Math.max(0, health);
+                // 2. AI 移動 (簡單追蹤)
+                const lookAtPos = new THREE.Vector3(playerPos.x, unit.mesh.position.y, playerPos.z);
+                unit.mesh.lookAt(lookAtPos); // 面向玩家
+
+                const direction = new THREE.Vector3().subVectors(playerPos, unit.mesh.position);
+                const distance = direction.length();
+
+                if (distance > 15) {
+                    direction.normalize();
+                    unit.mesh.position.add(direction.multiplyScalar(unit.speed * delta));
+                } else {
+                    // 攻擊玩家
+                    health -= delta * 10; // 每秒扣血
+                    healthEl.innerText = Math.floor(Math.max(0, health));
                     if (health <= 0) {
-                        document.exitPointerLock();
-                        alert("GAME OVER! Score: " + score);
+                        controls.unlock();
+                        alert("你被黑暗吞噬了... 最終擊殺數: " + score);
                         location.reload();
                     }
                 }
+                
+                // 3. 簡單的漂浮效果
+                unit.mesh.position.y = Math.sin(clock.elapsedTime * 2 + index) * 2 + 2;
             });
             
-            // 隨機生成敵人
-            if (Math.random() < 0.02) spawnEnemy();
+            // 隨機生成
+            if (Math.random() < 0.03 && health > 0) spawnEnemy();
         }
 
         function onWindowResize() {
@@ -300,44 +432,38 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        // --- 遊戲主循環 ---
         function animate() {
             requestAnimationFrame(animate);
+            // 獲取兩幀之間的時間間隔，用於平滑動畫和物理
+            const delta = clock.getDelta(); 
 
-            const time = performance.now();
-
-            if (controls.isLocked === true) {
-                const delta = (time - prevTime) / 1000;
-
-                // --- 物理運動邏輯 ---
-                velocity.x -= velocity.x * 10.0 * delta; // 阻尼 (摩擦力)
-                velocity.z -= velocity.z * 10.0 * delta;
-                velocity.y -= 9.8 * 100.0 * delta; // 重力
+            if (controls.isLocked === true && health > 0) {
+                // 物理運動計算
+                velocity.x -= velocity.x * 8.0 * delta;
+                velocity.z -= velocity.z * 8.0 * delta;
+                velocity.y -= 9.8 * 80.0 * delta; // 重力
 
                 direction.z = Number(moveForward) - Number(moveBackward);
                 direction.x = Number(moveRight) - Number(moveLeft);
-                direction.normalize(); // 確保對角線移動速度一致
+                direction.normalize();
 
-                if (moveForward || moveBackward) velocity.z -= direction.z * 400.0 * delta;
-                if (moveLeft || moveRight) velocity.x -= direction.x * 400.0 * delta;
+                if (moveForward || moveBackward) velocity.z -= direction.z * 450.0 * delta;
+                if (moveLeft || moveRight) velocity.x -= direction.x * 450.0 * delta;
 
                 controls.moveRight(- velocity.x * delta);
                 controls.moveForward(- velocity.z * delta);
-                
-                controls.getObject().position.y += (velocity.y * delta); // 應用垂直速度
+                controls.getObject().position.y += (velocity.y * delta);
 
-                // 地面碰撞檢測
-                if (controls.getObject().position.y < 10) {
+                if (controls.getObject().position.y < 12) {
                     velocity.y = 0;
-                    controls.getObject().position.y = 10;
+                    controls.getObject().position.y = 12;
                     canJump = true;
                 }
                 
-                // --- 更新遊戲邏輯 ---
-                updateEnemies(delta);
+                // 更新遊戲狀態 (敵人AI和動畫)
+                updateGameState(delta);
             }
 
-            prevTime = time;
             renderer.render(scene, camera);
         }
     </script>
