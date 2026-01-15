@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Graveyard Shooter - Fixed</title>
+    <title>Graveyard Shooter - Grounded Fix</title>
     <style>
         /* --- 基礎設定 --- */
         body { margin: 0; overflow: hidden; background-color: #000; user-select: none; font-family: 'Segoe UI', 'Courier New', monospace; }
@@ -394,7 +394,7 @@
             glow.name = "glowBar"; 
             g.add(glow);
             
-            // 調整到視野適合的位置 (修正了這裡)
+            // 調整到視野適合的位置
             g.position.set(0.4, -0.4, -0.8); 
             return g;
         }
@@ -412,7 +412,9 @@
             const moon = new THREE.DirectionalLight(0xaaccff, 0.3); moon.position.set(50,100,50); scene.add(moon);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-            camera.position.y = 12;
+            
+            // --- 修正：降低玩家高度 ---
+            camera.position.y = 6; // 從 12 降到 6，增加平視感
 
             // 手電筒
             const pl = new THREE.SpotLight(0xffffff, 80, 200, 0.6, 0.5);
@@ -544,9 +546,13 @@
             if (enemyUnits.length > max) return;
 
             const g = new THREE.Group();
+            
+            // 修正鬼怪模型高度
+            // 圓錐體高度8，中心為0，範圍[-4, 4]。Y位置設為4，範圍變為[0, 8]。
             const body = new THREE.Mesh(new THREE.ConeGeometry(3, 8, 8, 1, true), 
                 new THREE.MeshStandardMaterial({color: 0x88ffff, emissive: 0x004444, transparent: true, opacity: 0.7, side: THREE.DoubleSide}));
-            body.position.y = 4; g.add(body);
+            body.position.y = 4; 
+            g.add(body);
             
             const head = new THREE.Mesh(new THREE.SphereGeometry(2), body.material);
             head.position.y = 8; g.add(head);
@@ -576,6 +582,7 @@
                 emissive: 0x550000, emissiveIntensity: 0.8
             });
             
+            // 修正 BOSS 模型高度
             const body = new THREE.Mesh(new THREE.CylinderGeometry(5*multiplier, 3*multiplier, 15*multiplier, 6), mat);
             body.position.y = 7.5*multiplier; g.add(body);
             
@@ -611,9 +618,11 @@
         function spawnUnit(group, hp, speed, type) {
             const angle = Math.random() * Math.PI * 2;
             const rad = 100 + Math.random() * 100;
+            
+            // --- 修正：將生成 Y 軸高度改為 0 (貼地) ---
             group.position.set(
                 controls.getObject().position.x + Math.cos(angle)*rad,
-                2,
+                0, 
                 controls.getObject().position.z + Math.sin(angle)*rad
             );
             scene.add(group);
@@ -668,7 +677,7 @@
             player.ammo--; updateUI();
             
             // 後座力
-            playerWeaponGroup.position.z += 0.2; // 修正後座力幅度
+            playerWeaponGroup.position.z += 0.2; 
             setTimeout(()=> playerWeaponGroup.position.z -= 0.2, 80);
 
             const flash = new THREE.PointLight(player.isSuperWeapon?0xffaa00:0x00ffff, 5, 20);
@@ -801,8 +810,9 @@
                 controls.moveForward(-velocity.z * delta);
                 controls.getObject().position.y += (velocity.y * delta);
                 
-                if (controls.getObject().position.y < 12) {
-                    velocity.y = 0; controls.getObject().position.y = 12; canJump = true;
+                // 玩家落地檢測 (從 12 改為 6)
+                if (controls.getObject().position.y < 6) {
+                    velocity.y = 0; controls.getObject().position.y = 6; canJump = true;
                     if((moveForward||moveBackward||moveLeft||moveRight) && time-lastStepTime > 400) {
                         SoundGen.footstep(); lastStepTime = time;
                     }
@@ -813,6 +823,11 @@
                     u.group.lookAt(pPos.x, u.group.position.y, pPos.z);
                     const dist = u.group.position.distanceTo(pPos);
                     
+                    // --- 修正：增加鬼怪上下漂浮效果 (Sine Wave) ---
+                    if (u.type === 'normal') {
+                        u.group.position.y = Math.sin(time * 0.003 + u.floatOffset) * 0.5;
+                    }
+
                     if (dist > (u.type==='boss'?15:8)) {
                         const dir = new THREE.Vector3().subVectors(pPos, u.group.position).normalize();
                         u.group.position.add(dir.multiplyScalar(u.speed * delta));
@@ -848,16 +863,12 @@
                     interactiveMsg.style.display = 'none';
                 }
 
-                // --- 修正後的生成邏輯 ---
                 if (!bossState.active) {
-                    checkBossSpawn(); // 檢查分數是否到了 BOSS 點
-                    
-                    // 只有 Boss 不在的時候才生成普通怪
+                    checkBossSpawn(); 
                     if (Math.random() < 0.02 && enemyUnits.length < 10) {
                         spawnGhost();
                     }
                 } else {
-                    // Boss 在場時，偶爾生成干擾小怪
                     if (Math.random() < 0.005 && enemyUnits.length < 5) {
                         spawnGhost();
                     }
