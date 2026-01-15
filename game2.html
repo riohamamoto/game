@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>彩色像素恐龍快跑</title>
+    <title>Dino Dash DX: 音樂與飛鳥版</title>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -20,13 +20,12 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            /* 複雜一點的背景：藍天到地面的漸層 */
             background: linear-gradient(to bottom, var(--bg-sky) 0%, var(--bg-sky) 60%, var(--bg-ground) 60%, var(--bg-ground) 100%);
-            font-family: 'Press Start 2P', monospace; /* 使用像素字體 */
+            font-family: 'Press Start 2P', monospace;
             box-sizing: border-box;
+            user-select: none; /* 防止選取文字 */
         }
 
-        /* 遊戲主機外殼 */
         #game-container {
             background-color: var(--console-color);
             padding: 20px 30px 40px 30px;
@@ -36,41 +35,46 @@
                 inset 0 -5px 15px rgba(255,255,255,0.5);
             border: 4px solid #b0b0b0;
             text-align: center;
+            max-width: 100%;
         }
 
-        /* 遊戲標題與分數板 */
         #hud-panel {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 15px;
             color: var(--text-color);
-            font-size: 12px;
+            font-size: 10px; /* 手機上字體小一點 */
             text-transform: uppercase;
             border-bottom: 3px solid var(--accent-color);
             padding-bottom: 10px;
         }
+        
+        @media (min-width: 600px) {
+            #hud-panel { font-size: 12px; }
+        }
 
         h1 {
             margin: 0;
-            font-size: 16px;
+            font-size: 14px;
             color: var(--accent-color);
             text-shadow: 2px 2px 0px #fff;
         }
 
-        /* Canvas 邊框 */
         .canvas-wrapper {
             border: 6px solid #333;
             border-radius: 4px;
-            background-color: #000; /* 邊框內側黑色 */
+            background-color: #000;
             padding: 2px;
             box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+            overflow: hidden; /* 防止溢出 */
         }
 
         #gameCanvas {
             background-color: #f7f7f7;
-            display: block; /* 消除 canvas 底部間隙 */
-            /* 為了讓像素畫更清晰，關閉圖像平滑處理 */
+            display: block;
+            width: 100%; /* 響應式寬度 */
+            max-width: 800px;
             image-rendering: pixelated; 
         }
 
@@ -78,20 +82,19 @@
             margin-top: 15px;
             font-size: 10px;
             color: var(--accent-color);
+            line-height: 1.6;
         }
 
-        .highlight {
-            color: #d32f2f;
-        }
+        .highlight { color: #d32f2f; }
     </style>
 </head>
 <body>
 
     <div id="game-container">
         <div id="hud-panel">
-            <h1>DINO DASH DX</h1>
+            <h1>DINO ADVENTURE</h1>
             <div>
-                SCORE: <span id="scoreText" class="highlight">0</span><br>
+                SCORE: <span id="scoreText" class="highlight">0</span> | 
                 HI: <span id="highScoreText">0</span>
             </div>
         </div>
@@ -101,315 +104,502 @@
         </div>
         
         <div id="controls-hint">
-            <p>[空白鍵] 或 [點擊螢幕] 跳躍</p>
+            <p>[空白鍵] / [↑] 跳躍 &nbsp;|&nbsp; [↓] 蹲下</p>
+            <p style="color: #666; font-size: 8px;">(點擊畫面開始/跳躍，按住螢幕下半部蹲下)</p>
         </div>
     </div>
 
-
 <script>
+/**
+ * AUDIO SYSTEM (Web Audio API)
+ * 使用合成器生成 8-bit 風格音樂和音效，無需外部文件
+ */
+const AudioSys = {
+    ctx: null,
+    isPlaying: false,
+    musicTimer: null,
+    musicNoteIndex: 0,
+    
+    // 初始化 AudioContext (必須在使用者互動後調用)
+    init: function() {
+        if (!this.ctx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioContext();
+        }
+        if (this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
+    },
+
+    // 播放單個音符 (頻率, 持續時間, 波形類型, 音量)
+    playTone: function(freq, duration, type = 'square', vol = 0.1) {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        
+        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        
+        osc.start();
+        osc.stop(this.ctx.currentTime + duration);
+    },
+
+    // 音效庫
+    sfx: {
+        jump: () => AudioSys.playTone(600, 0.1, 'square', 0.1),
+        score: () => {
+            // 雙重音效 "叮-叮"
+            AudioSys.playTone(1000, 0.1, 'sine', 0.2);
+            setTimeout(() => AudioSys.playTone(1500, 0.2, 'sine', 0.2), 100);
+        },
+        die: () => AudioSys.playTone(150, 0.5, 'sawtooth', 0.2)
+    },
+
+    // 簡單的背景音樂循環
+    startMusic: function() {
+        if (this.isPlaying) return;
+        this.isPlaying = true;
+        this.musicNoteIndex = 0;
+        
+        // 一段簡單的快樂旋律 (頻率值)
+        const melody = [
+            330, 330, 330, 0,  // E
+            330, 330, 330, 0,  // E
+            330, 392, 261, 293, 330, 0, // E G C D E
+            349, 349, 349, 349, // F
+            349, 330, 330, 330, // F E
+            330, 293, 293, 330, 293, 392 // E D D E D G
+        ];
+        
+        const noteDuration = 200; // ms
+
+        this.musicTimer = setInterval(() => {
+            if (!this.isPlaying || isGameOver) {
+                clearInterval(this.musicTimer);
+                return;
+            }
+            
+            const note = melody[this.musicNoteIndex];
+            if (note > 0) {
+                // 播放背景音樂音量小一點
+                this.playTone(note, 0.15, 'triangle', 0.05);
+            }
+            
+            this.musicNoteIndex = (this.musicNoteIndex + 1) % melody.length;
+        }, noteDuration);
+    },
+
+    stopMusic: function() {
+        this.isPlaying = false;
+        clearInterval(this.musicTimer);
+    }
+};
+
+/**
+ * GAME LOGIC
+ */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-
-// 為了像素風，關閉平滑處理
 ctx.imageSmoothingEnabled = false;
 
 // 遊戲變數
 let score = 0;
 let highScore = 0;
-let baseGameSpeed = 6;
+let baseGameSpeed = 5; // 初始速度調慢一點 (原本是6)
 let gameSpeed = baseGameSpeed;
 let isGameOver = false;
 let frames = 0;
-// 地面高度 y 座標
+let nextObstacleTimer = 0; // 用於控制隨機生成間隔
 const groundY = 220; 
 
 // 恐龍對象
 const dino = {
-    // 重新定義尺寸，使其稍微大一點，便於繪製細節
+    x: 50,
+    y: groundY - 50,
     width: 50,
     height: 50,
-    x: 50,
-    // 初始 y 位置：地面高度 - 恐龍高度
-    y: groundY - 50, 
+    originalHeight: 50,
     dy: 0,
-    jumpForce: 14,
+    jumpForce: 13,
     grounded: false,
-    // 顏色定義
-    colors: {
-        body: '#4CAF50',   // 鮮綠色
-        belly: '#81C784',  // 淺綠色
-        eye: '#FFFFFF',    // 白色
-        pupil: '#000000',  // 黑色
-        leg: '#388E3C'     // 深綠色
-    },
+    ducking: false,
+    
+    colors: { body: '#4CAF50', belly: '#81C784', eye: '#FFF', leg: '#388E3C' },
     
     draw: function() {
-        const x = this.x;
-        const y = this.y;
-
-        // === 繪製像素恐龍形狀 ===
+        // 如果正在蹲下，壓扁身形
+        let drawH = this.ducking ? 30 : 50;
+        let drawY = this.ducking ? this.y + 20 : this.y;
         
-        // 1. 身體主體 (較大的矩形)
+        // 顏色
         ctx.fillStyle = this.colors.body;
-        ctx.fillRect(x + 10, y + 20, 30, 25); 
-
-        // 2. 頭部
-        ctx.fillRect(x + 25, y, 25, 25);
-
-        // 3. 嘴巴/鼻子突出部
-        ctx.fillRect(x + 45, y + 15, 10, 10);
         
-        // 4. 腹部 (淺色)
-        ctx.fillStyle = this.colors.belly;
-        ctx.fillRect(x + 10, y + 35, 25, 10);
-
-        // 5. 眼睛
-        ctx.fillStyle = this.colors.eye;
-        ctx.fillRect(x + 35, y + 5, 8, 8);
-        ctx.fillStyle = this.colors.pupil;
-        ctx.fillRect(x + 40, y + 7, 3, 3);
-
-        // 6. 腿部 (帶簡單動畫)
-        ctx.fillStyle = this.colors.leg;
-        let legOffset = 0;
-        // 如果在地上跑，利用 frames 製造簡單的跑步動畫
-        if (this.grounded && frames % 16 < 8) {
-            legOffset = 5;
+        // 身體
+        if (this.ducking) {
+            // 蹲下時的形狀 (橫長)
+            ctx.fillRect(this.x, drawY, 55, 30);
+            ctx.fillStyle = this.colors.belly;
+            ctx.fillRect(this.x + 5, drawY + 20, 35, 10);
+            // 眼睛
+            ctx.fillStyle = this.colors.eye;
+            ctx.fillRect(this.x + 40, drawY + 5, 8, 8);
+            ctx.fillStyle = "black";
+            ctx.fillRect(this.x + 45, drawY + 7, 3, 3);
+        } else {
+            // 站立時的形狀
+            ctx.fillRect(this.x + 10, drawY + 20, 30, 25); // 身
+            ctx.fillRect(this.x + 25, drawY, 25, 25);      // 頭
+            ctx.fillRect(this.x + 45, drawY + 15, 10, 10); // 嘴
+            
+            ctx.fillStyle = this.colors.belly;
+            ctx.fillRect(this.x + 10, drawY + 35, 25, 10);
+            
+            ctx.fillStyle = this.colors.eye;
+            ctx.fillRect(this.x + 35, drawY + 5, 8, 8);
+            ctx.fillStyle = "black";
+            ctx.fillRect(this.x + 40, drawY + 7, 3, 3);
         }
 
-        // 左腿
-        ctx.fillRect(x + 15, y + 45 - legOffset, 10, 10 + legOffset);
-        // 右腿
-        ctx.fillRect(x + 30, y + 45 + legOffset - 5, 10, 10 - legOffset + 5);
+        // 腿部動畫
+        ctx.fillStyle = this.colors.leg;
+        let legOffset = 0;
+        if (this.grounded && frames % 16 < 8) legOffset = 5;
+        
+        // 腿的位置隨蹲下調整
+        let legY = this.ducking ? drawY + 30 : drawY + 45;
+        
+        ctx.fillRect(this.x + 15, legY - legOffset, 10, 10 + legOffset);
+        ctx.fillRect(this.x + 30, legY + legOffset - 5, 10, 10 - legOffset + 5);
     },
     
     jump: function() {
-        if (this.grounded) {
+        if (this.grounded && !this.ducking) { // 蹲下時不能跳
             this.dy = -this.jumpForce;
             this.grounded = false;
+            AudioSys.sfx.jump();
         }
     },
     
     update: function() {
-        // 重力應用
+        // 重力
         this.y += this.dy;
         
-        // 如果在空中 (低於地面高度)，施加重力
         if (this.y + this.height < groundY) {
-            this.dy += 0.8; // 重力加速度
+            this.dy += 0.8;
             this.grounded = false;
         } else {
-            // 著陸
-            this.y = groundY - this.height;
             this.dy = 0;
             this.grounded = true;
+            this.y = groundY - this.height;
         }
         this.draw();
     }
 };
 
-// 障礙物 (仙人掌) 管理
+// 障礙物管理
 const obstacles = [];
 
-class Obstacle {
+// 仙人掌類
+class Cactus {
     constructor() {
-        // 隨機寬度，但保持一定比例
-        this.scale = 0.8 + Math.random() * 0.4; // 0.8 到 1.2 倍大小
-        this.w = 30 * this.scale; 
-        this.h = 50 * this.scale;
+        this.type = 'cactus';
+        // 隨機生成 1~3 個連在一起的仙人掌
+        this.groupSize = Math.floor(Math.random() * 3) + 1;
+        this.w = 25 * this.groupSize; 
+        this.h = 45 + Math.random() * 15; // 高度隨機
         this.x = canvas.width;
-        this.y = groundY - this.h; // 站在地面上
-        this.colorMain = '#2E7D32'; // 仙人掌深綠色
-        this.colorLight = '#43A047'; // 仙人掌亮面
+        this.y = groundY - this.h;
+        this.color = '#2E7D32';
     }
 
     draw() {
-        // === 繪製仙人掌形狀 ===
-        const x = this.x;
-        const y = this.y;
-        const w = this.w;
-        const h = this.h;
-
-        ctx.fillStyle = this.colorMain;
-        
-        // 1. 主幹
-        const stemWidth = w * 0.5;
-        ctx.fillRect(x + (w - stemWidth)/2, y, stemWidth, h);
-        
-        // 2. 左分叉
-        ctx.fillRect(x, y + h*0.3, w*0.2, h*0.1); // 橫向
-        ctx.fillRect(x, y + h*0.15, w*0.2, h*0.25); // 縱向
-
-        // 3. 右分叉 (稍微高一點)
-        ctx.fillRect(x + w*0.8, y + h*0.4, w*0.2, h*0.1); // 橫向
-        ctx.fillRect(x + w*0.8, y + h*0.25, w*0.2, h*0.25); // 縱向
-
-        // 4. 添加一些簡單的亮面細節，增加立體感
-        ctx.fillStyle = this.colorLight;
-        ctx.fillRect(x + (w - stemWidth)/2 + 5, y + 5, 5, h - 10);
+        ctx.fillStyle = this.color;
+        // 簡單繪製幾個並排的矩形代表仙人掌群
+        for(let i=0; i<this.groupSize; i++) {
+            let offsetX = i * 25;
+            let cactusH = this.h - (i%2)*10; // 稍微高低錯落
+            ctx.fillRect(this.x + offsetX, groundY - cactusH, 20, cactusH);
+            // 刺細節
+            ctx.fillStyle = '#1B5E20';
+            ctx.fillRect(this.x + offsetX + 4, groundY - cactusH + 5, 2, cactusH-10);
+            ctx.fillStyle = this.color;
+        }
     }
 
     update() {
         this.x -= gameSpeed;
         this.draw();
     }
-}
-
-// 產生障礙物
-let obstacleTimer = 0;
-function spawnObstacle() {
-    obstacleTimer++;
-    // 隨機生成，但隨著速度增加，生成間隔變短
-    let spawnChance = Math.floor(Math.random() * 40 + (120 - gameSpeed * 5));
-    if (spawnChance < 60) spawnChance = 60; // 最小間隔保護
-
-    if (obstacleTimer > spawnChance) {
-        obstacles.push(new Obstacle());
-        obstacleTimer = 0;
+    
+    // 碰撞箱修正 (寬度要包含整個群組)
+    getHitbox() {
+        return {
+            x: this.x + 5,
+            y: this.y + 5,
+            w: (this.groupSize * 25) - 10, // 緊湊一點
+            h: this.h - 10
+        };
     }
 }
 
-// 繪製環境背景
+// 飛鳥類 (新增)
+class Bird {
+    constructor() {
+        this.type = 'bird';
+        this.w = 40;
+        this.h = 30;
+        this.x = canvas.width;
+        
+        // 隨機高度：低空(需跳躍) 或 高空(需蹲下)
+        // 30% 機率是高空鳥
+        let isHigh = Math.random() > 0.7;
+        
+        if (isHigh) {
+            this.y = groundY - 75; // 恐龍頭部高度，必須蹲下
+        } else {
+            this.y = groundY - 40; // 地面附近，必須跳躍
+        }
+        
+        this.color = '#1E88E5'; // 藍色鳥
+    }
+
+    draw() {
+        ctx.fillStyle = this.color;
+        let flap = Math.floor(frames / 10) % 2 === 0; // 翅膀拍動
+        
+        // 身體
+        ctx.fillRect(this.x, this.y + 10, 40, 15);
+        // 頭
+        ctx.fillRect(this.x - 10, this.y + 5, 15, 15);
+        // 嘴
+        ctx.fillStyle = '#FFA000';
+        ctx.fillRect(this.x - 15, this.y + 10, 5, 5);
+        
+        // 翅膀
+        ctx.fillStyle = '#1565C0';
+        if (flap) {
+            // 翅膀向上
+            ctx.fillRect(this.x + 10, this.y - 10, 20, 20);
+        } else {
+            // 翅膀向下
+            ctx.fillRect(this.x + 10, this.y + 10, 20, 20);
+        }
+    }
+
+    update() {
+        this.x -= (gameSpeed + 1); // 鳥飛得比地面移動快一點點
+        this.draw();
+    }
+
+    getHitbox() {
+        return {
+            x: this.x,
+            y: this.y + 5,
+            w: this.w,
+            h: this.h - 5
+        };
+    }
+}
+
+// 障礙物生成邏輯
+function spawnObstacle() {
+    // 減少計時器
+    nextObstacleTimer--;
+
+    if (nextObstacleTimer <= 0) {
+        // 決定生成什麼
+        let obstacle;
+        // 分數越高，出現鳥的機率越高 (最高 50%)
+        let birdChance = Math.min(score / 2000, 0.5); 
+        
+        if (score > 300 && Math.random() < birdChance) {
+            obstacle = new Bird();
+        } else {
+            obstacle = new Cactus();
+        }
+        
+        obstacles.push(obstacle);
+
+        // 重置計時器：隨機距離
+        // 距離 = 速度 * 時間。為了保證可通過，最小時間間隔要足夠
+        // 隨機產生 60 ~ 140 幀的間隔
+        let minFrames = 60; 
+        let maxFrames = 140;
+        // 隨著速度變快，縮短最大間隔，保持緊張感
+        if (gameSpeed > 10) maxFrames = 100;
+        
+        nextObstacleTimer = Math.floor(Math.random() * (maxFrames - minFrames) + minFrames);
+    }
+}
+
 function drawEnvironment() {
-    // 地面線條
+    // 地面
+    ctx.fillStyle = '#8D6E63';
+    ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
     ctx.beginPath();
     ctx.moveTo(0, groundY);
     ctx.lineTo(canvas.width, groundY);
     ctx.lineWidth = 4;
-    ctx.strokeStyle = '#795548'; // 棕色地面
+    ctx.strokeStyle = '#5D4037';
     ctx.stroke();
 
-    // 地面填充
-    ctx.fillStyle = '#8D6E63';
-    ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
-
-    // 簡單的雲朵 (裝飾用)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    let cloudX = (frames * 0.5) % (canvas.width + 100) - 50;
+    // 雲朵
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    let cloudX = (frames * 0.5) % (canvas.width + 200) - 100;
+    let cloudX2 = (frames * 0.3 + 400) % (canvas.width + 200) - 100;
+    
     ctx.fillRect(canvas.width - cloudX, 50, 60, 20);
-    ctx.fillRect(canvas.width - cloudX + 20, 40, 40, 30);
+    ctx.fillRect(canvas.width - cloudX2, 80, 80, 25);
 }
 
-
-// 開始遊戲
-function start() {
-    isGameOver = false;
-    score = 0;
-    gameSpeed = baseGameSpeed;
-    obstacles.length = 0;
-    dino.y = groundY - dino.height;
-    dino.dy = 0;
-    frames = 0;
-    obstacleTimer = 0;
-    update();
-}
-
-// 遊戲主循環
+// 遊戲循環
 function update() {
     if (isGameOver) return;
     
     requestAnimationFrame(update);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // 繪製背景環境
     drawEnvironment();
 
-    // 增加難度和分數
     frames++;
     score++;
-    // 每隔一段時間增加速度，設定上限
-    if (frames % 600 === 0 && gameSpeed < 15) {
-        gameSpeed += 0.5;
+    
+    // === 速度與難度控制 ===
+    // 每 1 分，速度增加極少量 (線性加速)
+    if (gameSpeed < 18) { // 設定速度上限
+        gameSpeed += 0.0005;
+    }
+
+    // === 音效邏輯 ===
+    // 每 100 分播放音效
+    if (score > 0 && score % 500 === 0) { // 實際上 score 是幀數累計，這裡除以 5 (因為約60fps, 500幀約8秒) 當作顯示分數
+        // 為了對應 UI 顯示的分數 (Math.floor(score/10))
+    }
+    
+    // UI 顯示分數是 score / 10
+    let displayScore = Math.floor(score / 10);
+    if (displayScore > 0 && displayScore % 100 === 0 && score % 10 === 0) {
+        AudioSys.sfx.score(); // 播放滿百音效
     }
 
     // 更新 UI
-    document.getElementById('scoreText').innerText = Math.floor(score / 10);
+    document.getElementById('scoreText').innerText = displayScore;
     
-    // 恐龍
+    // 恐龍更新
     dino.update();
     
-    // 障礙物邏輯
+    // 障礙物更新
     spawnObstacle();
     
     for (let i = 0; i < obstacles.length; i++) {
         let obs = obstacles[i];
         obs.update();
         
-        // 移除超出屏幕的障礙物
-        if (obs.x + obs.w < 0) {
+        if (obs.x + 100 < 0) {
             obstacles.splice(i, 1);
             i--;
         }
         
-        // 碰撞檢測 (AABB 矩形碰撞)
-        // 雖然繪圖變複雜了，但為了效能和簡單起見，我們仍然使用物體的邊界框(bounding box)來判斷碰撞。
-        // 為了讓遊戲手感更好，我們把碰撞判定框稍微縮小一點點 (hitbox調整)
-        const dinoHitboxX = dino.x + 5;
-        const dinoHitboxW = dino.width - 10;
-        const dinoHitboxY = dino.y + 5;
-        const dinoHitboxH = dino.height - 10;
+        // 碰撞檢測
+        let hitBox = obs.getHitbox();
+        let dinoBox = {
+            x: dino.x + 5,
+            y: dino.ducking ? dino.y + 20 : dino.y + 5,
+            w: dino.ducking ? 50 : dino.width - 15,
+            h: dino.ducking ? 30 : dino.height - 15
+        };
 
         if (
-            dinoHitboxX < obs.x + obs.w &&
-            dinoHitboxX + dinoHitboxW > obs.x &&
-            dinoHitboxY < obs.y + obs.h &&
-            dinoHitboxY + dinoHitboxH > obs.y
+            dinoBox.x < hitBox.x + hitBox.w &&
+            dinoBox.x + dinoBox.w > hitBox.x &&
+            dinoBox.y < hitBox.y + hitBox.h &&
+            dinoBox.y + dinoBox.h > hitBox.y
         ) {
             gameOver();
         }
     }
 }
 
+function start() {
+    // 必須由用戶觸發 AudioContext
+    AudioSys.init();
+    AudioSys.startMusic();
+
+    isGameOver = false;
+    score = 0;
+    gameSpeed = baseGameSpeed;
+    obstacles.length = 0;
+    dino.y = groundY - dino.height;
+    dino.dy = 0;
+    dino.grounded = true;
+    nextObstacleTimer = 0;
+    frames = 0;
+    update();
+}
+
 function gameOver() {
     isGameOver = true;
-    
-    // 半透明黑色遮罩
+    AudioSys.stopMusic();
+    AudioSys.sfx.die();
+
     ctx.fillStyle = "rgba(0,0,0,0.5)";
     ctx.fillRect(0,0,canvas.width, canvas.height);
-
+    
     ctx.fillStyle = "white";
     ctx.textAlign = "center";
-    
     ctx.font = "30px 'Press Start 2P', monospace";
-    // 帶陰影的文字
-    ctx.fillStyle = "#d32f2f";
-    ctx.fillText("GAME OVER", canvas.width/2 + 2, canvas.height/2 + 2);
-    ctx.fillStyle = "white";
     ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2);
-    
     ctx.font = "14px 'Press Start 2P', monospace";
-    ctx.fillText("按空白鍵重新開始", canvas.width/2, canvas.height/2 + 50);
-    
-    if (Math.floor(score/10) > highScore) {
-        highScore = Math.floor(score/10);
+    ctx.fillText("PRESS SPACE TO RESTART", canvas.width/2, canvas.height/2 + 50);
+
+    let displayScore = Math.floor(score/10);
+    if (displayScore > highScore) {
+        highScore = displayScore;
         document.getElementById('highScoreText').innerText = highScore;
     }
 }
 
-// 輸入監聽處理函數
+// 輸入控制
 function handleInput(e) {
-    // 如果是鍵盤事件，檢查是否是空白鍵
-    if (e.type === 'keydown' && e.code !== 'Space') {
-        return;
+    if (e.type === 'keydown') {
+        if (e.code === 'Space' || e.code === 'ArrowUp') {
+            e.preventDefault();
+            if (isGameOver) start();
+            else dino.jump();
+        }
+        if (e.code === 'ArrowDown') {
+            e.preventDefault();
+            if (!isGameOver) dino.ducking = true;
+        }
+    }
+    if (e.type === 'keyup') {
+        if (e.code === 'ArrowDown') {
+            dino.ducking = false;
+        }
     }
     
-    // 防止空白鍵滾動頁面或觸控的默認行為
-    if (e.preventDefault) e.preventDefault();
-
-    if (isGameOver) {
-        start();
-    } else {
-        dino.jump();
+    // 觸控邏輯 (簡單版：點擊跳，長按無蹲下功能，建議用鍵盤體驗完整版)
+    if (e.type === 'touchstart') {
+        e.preventDefault(); // 防止滾動
+        if (isGameOver) start();
+        else dino.jump();
     }
 }
 
-// 監聽鍵盤和觸控
 window.addEventListener('keydown', handleInput);
+window.addEventListener('keyup', handleInput);
 window.addEventListener('touchstart', handleInput, { passive: false });
 
-
-// 啟動
-start();
+// 初始畫面
+ctx.fillStyle = "#333";
+ctx.font = "20px 'Press Start 2P', monospace";
+ctx.fillText("PRESS SPACE TO START", 220, 120);
 
 </script>
 </body>
