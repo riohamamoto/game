@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML5 俄羅斯方塊 - 挑戰最高分</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #111;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #fff;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+            text-shadow: 0 0 10px #00ffff, 0 0 20px #00ffff;
+        }
+        
+        .subtitle {
+            color: #aaa;
+            margin-bottom: 20px;
+        }
+        
+        .game-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 30px;
+            max-width: 1000px;
+            width: 100%;
+        }
+        
+        /* 增加相對定位以便放置浮動文字 */
+        .canvas-wrapper {
+            position: relative;
+        }
+
+        .game-board {
+            border: 2px solid #333;
+            border-radius: 5px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
+            background-color: #000;
+            display: block;
+        }
+        
+        /* 激勵評語的樣式 */
+        .cheer-text {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            font-weight: bold;
+            color: #ffcc00;
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.8);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s, transform 0.5s;
+            white-space: nowrap;
+            z-index: 10;
+        }
+
+        .cheer-text.show {
+            opacity: 1;
+            transform: translate(-50%, -80%) scale(1.2);
+        }
+
+        .side-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-width: 200px;
+        }
+        
+        .panel {
+            background-color: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        h2 {
+            color: #00ccff;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+            border-bottom: 1px solid #333;
+            padding-bottom: 5px;
+        }
+        
+        .score-display {
+            font-size: 2.2rem;
+            font-weight: bold;
+            text-align: center;
+            color: #00ffcc;
+            text-shadow: 0 0 10px rgba(0, 255, 204, 0.5);
+            margin: 10px 0;
+        }
+
+        /* 最高分樣式 */
+        .highscore-display {
+            font-size: 1rem;
+            text-align: center;
+            color: #ff9900;
+            margin-bottom: 5px;
+            border-bottom: 1px dashed #444;
+            padding-bottom: 5px;
+        }
+        
+        .level-display, .lines-display {
+            font-size: 1.2rem;
+            text-align: center;
+            margin: 8px 0;
+            color: #ffcc00;
+        }
+        
+        .next-piece {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        
+        #nextCanvas {
+            background-color: #000;
+            border: 1px solid #333;
+        }
+        
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .control-item {
+            background-color: #222;
+            padding: 8px;
+            border-radius: 5px;
+            text-align: center;
+            border: 1px solid #333;
+        }
+        
+        .key {
+            display: inline-block;
+            background-color: #333;
+            color: #fff;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            margin-top: 5px;
+        }
+        
+        /* 難度選擇器樣式 */
+        .difficulty-selector {
+            margin-bottom: 15px;
+            width: 100%;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            background-color: #222;
+            color: #fff;
+            border: 1px solid #00ccff;
+            border-radius: 5px;
+            font-size: 1rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        select:hover {
+            background-color: #333;
+        }
+
+        .buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 10px;
+        }
+        
+        button {
+            padding: 12px 20px;
+            background-color: #222;
+            color: #fff;
+            border: 1px solid #00ccff;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            background-color: #00ccff;
+            color: #000;
+            transform: translateY(-2px);
+        }
+        
+        button:active {
+            transform: translateY(1px);
+        }
+        
+        .game-info {
+            color: #aaa;
+            line-height: 1.6;
+            font-size: 0.9rem;
+        }
+        
+        .instructions {
+            margin-top: 30px;
+            max-width: 800px;
+            text-align: center;
+            color: #888;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            color: #555;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            .game-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .side-panel {
+                width: 100%;
+                max-width: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>HTML5 俄羅斯方塊</h1>
+        <div class="subtitle">挑戰極限 - 打破你的最高紀錄</div>
+    </div>
+    
+    <div class="game-container">
+        <div class="canvas-wrapper">
+            <canvas id="gameCanvas" width="300" height="600" class="game-board"></canvas>
+            <div id="cheerText" class="cheer-text">Level Up!</div>
+        </div>
+        
+        <div class="side-panel">
+            <div class="panel">
+                <h2>遊戲狀態</h2>
+                <div class="highscore-display">最高紀錄: <span id="highScore">0</span></div>
+                
+                <div class="score-display" id="score">0</div>
+                <div class="level-display">等級: <span id="level">1</span></div>
+                <div class="lines-display">消除行数: <span id="lines">0</span></div>
+            </div>
+            
+            <div class="panel">
+                <h2>下一個方塊</h2>
+                <div class="next-piece">
+                    <canvas id="nextCanvas" width="120" height="120"></canvas>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>遊戲設置</h2>
+                <div class="difficulty-selector">
+                    <label for="difficultySelect" style="display:block; margin-bottom:5px; color:#aaa;">選擇難度：</label>
+                    <select id="difficultySelect">
+                        <option value="easy">簡單 (慢速)</option>
+                        <option value="medium" selected>中級 (標準)</option>
+                        <option value="hard">困難 (極速)</option>
+                    </select>
+                </div>
+                <div class="buttons">
+                    <button id="startBtn">開始遊戲</button>
+                    <button id="pauseBtn">暫停遊戲</button>
+                    <button id="resetBtn">重新開始</button>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <h2>操作說明</h2>
+                <div class="controls">
+                    <div class="control-item">移動 <div class="key">← →</div></div>
+                    <div class="control-item">旋轉 <div class="key">↑</div></div>
+                    <div class="control-item">加速 <div class="key">↓</div></div>
+                    <div class="control-item">瞬落 <div class="key">Space</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="instructions">
+        <p>提示：不同難度對應不同的初始速度。消除行數越多，分數越高！</p>
+    </div>
+    
+    <div class="footer">
+        HTML5 俄羅斯方塊遊戲 &copy; 2023 | 升級版
+    </div>
+
+    <script>
+        // 遊戲常量
+        const COLS = 10;
+        const ROWS = 20;
+        const BLOCK_SIZE = 30;
+        const COLORS = [
+            null,
+            '#FF0D72', // I
+            '#0DC2FF', // J
+            '#0DFF72', // L
+            '#F538FF', // O
+            '#FF8E0D', // S
+            '#FFE138', // T
+            '#3877FF'  // Z
+        ];
+
+        // 激勵評語庫
+        const CHEER_MESSAGES = [
+            "不錯喔！",
+            "速度加快！",
+            "手速驚人！",
+            "神乎其技！",
+            "太強了吧！",
+            "超越極限！"
+        ];
+
+        // 難度設置
+        const DIFFICULTY_SETTINGS = {
+            'easy': { speed: 1000, name: '簡單' },
+            'medium': { speed: 600, name: '中級' },
+            'hard': { speed: 200, name: '困難' }
+        };
+
+        // 方塊形狀定義
+        const SHAPES = [
+            null,
+            [[0, 0, 0, 0], [1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]],
+            [[2, 0, 0], [2, 2, 2], [0, 0, 0]],
+            [[0, 0, 3], [3, 3, 3], [0, 0, 0]],
+            [[4, 4], [4, 4]],
+            [[0, 5, 5], [5, 5, 0], [0, 0, 0]],
+            [[0, 6, 0], [6, 6, 6], [0, 0, 0]],
+            [[7, 7, 0], [0, 7, 7], [0, 0, 0]]
+        ];
+
+        // 遊戲變量
+        let canvas, ctx, nextCanvas, nextCtx;
+        let board = [];
+        let score = 0;
+        let highScore = 0; // 最高分變量
+        let level = 1;
+        let lines = 0;
+        let gameOver = false;
+        let isPaused = false;
+        let dropCounter = 0;
+        let dropInterval = 1000;
+        let lastTime = 0;
+        let currentDifficulty = 'medium'; // 當前難度
+
+        // 當前方塊和下一個方塊
+        let player = {
+            pos: {x: 0, y: 0},
+            matrix: null,
+            score: 0
+        };
+        
+        let nextPiece = null;
+
+        // DOM元素
+        const scoreElement = document.getElementById('score');
+        const highScoreElement = document.getElementById('highScore');
+        const levelElement = document.getElementById('level');
+        const linesElement = document.getElementById('lines');
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const difficultySelect = document.getElementById('difficultySelect');
+        const cheerText = document.getElementById('cheerText');
+
+        // 初始化遊戲
+        function init() {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            nextCanvas = document.getElementById('nextCanvas');
+            nextCtx = nextCanvas.getContext('2d');
+            
+            canvas.width = COLS * BLOCK_SIZE;
+            canvas.height = ROWS * BLOCK_SIZE;
+            
+            // 讀取最高分
+            loadHighScore();
+
+            createBoard();
+            resetPlayer();
+            generateNextPiece();
+            
+            document.addEventListener('keydown', handleKeyPress);
+            startBtn.addEventListener('click', startGame);
+            pauseBtn.addEventListener('click', togglePause);
+            resetBtn.addEventListener('click', resetGame);
+            
+            // 監聽難度變化
+            difficultySelect.addEventListener('change', (e) => {
+                currentDifficulty = e.target.value;
+                if (!gameOver && score === 0) {
+                    // 如果遊戲剛開始還沒得分，直接應用新速度
+                    dropInterval = DIFFICULTY_SETTINGS[currentDifficulty].speed;
+                }
+                // 為了不干擾進行中的遊戲，通常在reset時才完全生效，
+                // 但這裡我們允許實時調整基礎速度
+            });
+
+            requestAnimationFrame(gameLoop);
+            updateDisplay();
+        }
+
+        // 讀取最高分
+        function loadHighScore() {
+            const savedScore = localStorage.getItem('tetrisHighScore');
+            if (savedScore) {
+                highScore = parseInt(savedScore);
+                highScoreElement.textContent = highScore;
+            }
+        }
+
+        // 更新最高分
+        function updateHighScore() {
+            if (score > highScore) {
+                highScore = score;
+                highScoreElement.textContent = highScore;
+                localStorage.setItem('tetrisHighScore', highScore);
+            }
+        }
+
+        // 顯示激勵評語
+        function showCheerMessage(text) {
+            cheerText.textContent = text;
+            cheerText.classList.add('show');
+            
+            // 1.5秒後隱藏
+            setTimeout(() => {
+                cheerText.classList.remove('show');
+            }, 1500);
+        }
+
+        function createBoard() {
+            board = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+        }
+
+        function resetPlayer() {
+            if (nextPiece) {
+                player.matrix = nextPiece;
+                generateNextPiece();
+            } else {
+                const pieces = 'IJLOSTZ';
+                player.matrix = SHAPES[pieces.charCodeAt(Math.floor(Math.random() * pieces.length)) % 7 + 1];
+            }
+            
+            player.pos.y = 0;
+            player.pos.x = Math.floor(COLS / 2) - Math.floor(player.matrix[0].length / 2);
+            
+            if (collide(board, player)) {
+                gameOver = true;
+                updateHighScore(); // 遊戲結束更新最高分
+            }
+        }
+
+        function generateNextPiece() {
+            const pieces = 'IJLOSTZ';
+            nextPiece = SHAPES[pieces.charCodeAt(Math.floor(Math.random() * pieces.length)) % 7 + 1];
+            drawNextPiece();
+        }
+
+        function drawNextPiece() {
+            nextCtx.fillStyle = '#000';
+            nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+            
+            if (!nextPiece) return;
+            
+            const matrix = nextPiece;
+            const colorIndex = matrix[0].find(row => row > 0);
+            
+            const offsetX = (nextCanvas.width - matrix[0].length * BLOCK_SIZE/2) / 2;
+            const offsetY = (nextCanvas.height - matrix.length * BLOCK_SIZE/2) / 2;
+            
+            for (let y = 0; y < matrix.length; y++) {
+                for (let x = 0; x < matrix[y].length; x++) {
+                    if (matrix[y][x] !== 0) {
+                        drawBlock(nextCtx, x, y, colorIndex, offsetX, offsetY, BLOCK_SIZE/2);
+                    }
+                }
+            }
+        }
+
+        // 統一的方塊繪製函數
+        function drawBlock(context, x, y, colorIndex, offsetX, offsetY, size) {
+            const posX = offsetX + x * size;
+            const posY = offsetY + y * size;
+            
+            context.fillStyle = COLORS[colorIndex];
+            context.fillRect(posX, posY, size - 1, size - 1);
+            
+            // 高光
+            context.fillStyle = 'rgba(255, 255, 255, 0.2)';
+            context.fillRect(posX, posY, size - 1, size / 10);
+            context.fillRect(posX, posY, size / 10, size - 1);
+            
+            // 陰影
+            context.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            context.fillRect(posX + size - size/10 -1, posY, size/10, size -1);
+            context.fillRect(posX, posY + size - size/10 -1, size -1, size/10);
+        }
+
+        function drawBoard() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 網格
+            ctx.strokeStyle = '#222';
+            ctx.lineWidth = 0.5;
+            for (let x = 0; x <= COLS; x++) {
+                ctx.beginPath(); ctx.moveTo(x * BLOCK_SIZE, 0); ctx.lineTo(x * BLOCK_SIZE, canvas.height); ctx.stroke();
+            }
+            for (let y = 0; y <= ROWS; y++) {
+                ctx.beginPath(); ctx.moveTo(0, y * BLOCK_SIZE); ctx.lineTo(canvas.width, y * BLOCK_SIZE); ctx.stroke();
+            }
+            
+            // 已落下
+            for (let y = 0; y < ROWS; y++) {
+                for (let x = 0; x < COLS; x++) {
+                    if (board[y][x]) {
+                        drawBlock(ctx, x, y, board[y][x], 0, 0, BLOCK_SIZE);
+                    }
+                }
+            }
+        }
+
+        function drawPlayer() {
+            if (!player.matrix) return;
+            const matrix = player.matrix;
+            const colorIndex = matrix[0].find(row => row > 0);
+            
+            for (let y = 0; y < matrix.length; y++) {
+                for (let x = 0; x < matrix[y].length; x++) {
+                    if (matrix[y][x] !== 0) {
+                        drawBlock(ctx, x, y, colorIndex, player.pos.x * BLOCK_SIZE, player.pos.y * BLOCK_SIZE, BLOCK_SIZE);
+                    }
+                }
+            }
+        }
+
+        function collide(board, player) {
+            const matrix = player.matrix;
+            const pos = player.pos;
+            for (let y = 0; y < matrix.length; y++) {
+                for (let x = 0; x < matrix[y].length; x++) {
+                    if (matrix[y][x] !== 0 && (board[y + pos.y] && board[y + pos.y][x + pos.x]) !== 0) {
+                        return true;
+                    }
+                    if (matrix[y][x] !== 0) {
+                        if (x + pos.x < 0 || x + pos.x >= COLS || y + pos.y >= ROWS) return true;
+                        if (y + pos.y < 0) return false;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function merge(board, player) {
+            player.matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        board[y + player.pos.y][x + player.pos.x] = value;
+                    }
+                });
+            });
+        }
+
+        function rotate(matrix, dir) {
+            const result = matrix.map((_, index) => matrix.map(col => col[index]));
+            return dir > 0 ? result.map(row => row.reverse()) : result.reverse();
+        }
+
+        function playerRotate(dir) {
+            if (gameOver || isPaused) return;
+            const pos = player.pos.x;
+            let offset = 1;
+            const rotated = rotate(player.matrix, dir);
+            player.matrix = rotated;
+            while (collide(board, player)) {
+                player.pos.x += offset;
+                offset = -(offset + (offset > 0 ? 1 : -1));
+                if (offset > player.matrix[0].length) {
+                    rotate(player.matrix, -dir);
+                    player.pos.x = pos;
+                    return;
+                }
+            }
+        }
+
+        function playerMove(dir) {
+            if (gameOver || isPaused) return;
+            player.pos.x += dir;
+            if (collide(board, player)) {
+                player.pos.x -= dir;
+            }
+        }
+
+        function playerDrop() {
+            if (gameOver || isPaused) return;
+            player.pos.y++;
+            if (collide(board, player)) {
+                player.pos.y--;
+                merge(board, player);
+                resetPlayer();
+                sweep();
+                updateDisplay();
+                updateHighScore(); // 實時更新最高分
+            }
+            dropCounter = 0;
+        }
+
+        function playerDropToBottom() {
+            if (gameOver || isPaused) return;
+            while (!collide(board, player)) {
+                player.pos.y++;
+            }
+            player.pos.y--;
+            merge(board, player);
+            resetPlayer();
+            sweep();
+            updateDisplay();
+            updateHighScore();
+            dropCounter = 0;
+        }
+
+        function sweep() {
+            let rowCount = 0;
+            outer: for (let y = board.length - 1; y >= 0; y--) {
+                for (let x = 0; x < board[y].length; x++) {
+                    if (board[y][x] === 0) continue outer;
+                }
+                const row = board.splice(y, 1)[0].fill(0);
+                board.unshift(row);
+                y++;
+                rowCount++;
+            }
+            
+            if (rowCount > 0) {
+                const linePoints = [0, 40, 100, 300, 1200];
+                score += linePoints[rowCount] * level;
+                lines += rowCount;
+                
+                // 檢查是否升級
+                const newLevel = Math.floor(lines / 10) + 1;
+                if (newLevel > level) {
+                    level = newLevel;
+                    // 根據難度計算新速度
+                    const baseSpeed = DIFFICULTY_SETTINGS[currentDifficulty].speed;
+                    // 每升一級，速度減少 (難度越高，減少幅度越小，因為初始已經很快)
+                    const speedReduction = currentDifficulty === 'hard' ? 20 : 100;
+                    dropInterval = Math.max(50, baseSpeed - (level - 1) * speedReduction);
+                    
+                    // 觸發激勵評語
+                    const randomMsg = CHEER_MESSAGES[Math.min(level - 1, CHEER_MESSAGES.length - 1)] || "Unstoppable!";
+                    showCheerMessage(randomMsg);
+                }
+                
+                updateDisplay();
+            }
+        }
+
+        function updateDisplay() {
+            scoreElement.textContent = score;
+            levelElement.textContent = level;
+            linesElement.textContent = lines;
+            highScoreElement.textContent = highScore;
+        }
+
+        function handleKeyPress(event) {
+            if (gameOver) return;
+            switch (event.keyCode) {
+                case 37: playerMove(-1); break;
+                case 39: playerMove(1); break;
+                case 40: playerDrop(); break;
+                case 38: playerRotate(1); break;
+                case 32: playerDropToBottom(); break;
+                case 80: togglePause(); break;
+            }
+        }
+
+        function startGame() {
+            if (gameOver) resetGame();
+            isPaused = false;
+            pauseBtn.textContent = "暫停遊戲";
+            difficultySelect.disabled = true; // 遊戲開始後鎖定難度
+        }
+
+        function togglePause() {
+            if (gameOver) return;
+            isPaused = !isPaused;
+            pauseBtn.textContent = isPaused ? "繼續遊戲" : "暫停遊戲";
+        }
+
+        function resetGame() {
+            createBoard();
+            score = 0;
+            lines = 0;
+            level = 1;
+            gameOver = false;
+            isPaused = false;
+            
+            // 重置時應用選擇的難度
+            currentDifficulty = difficultySelect.value;
+            dropInterval = DIFFICULTY_SETTINGS[currentDifficulty].speed;
+            
+            resetPlayer();
+            generateNextPiece();
+            updateDisplay();
+            pauseBtn.textContent = "暫停遊戲";
+            difficultySelect.disabled = false; // 重置後可以重新選擇難度
+            cheerText.classList.remove('show');
+        }
+
+        function gameLoop(time = 0) {
+            const deltaTime = time - lastTime;
+            lastTime = time;
+            
+            if (!isPaused && !gameOver) {
+                dropCounter += deltaTime;
+                if (dropCounter > dropInterval) {
+                    playerDrop();
+                }
+            }
+            
+            drawBoard();
+            drawPlayer();
+            
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#FF0D72';
+                ctx.font = 'bold 36px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('遊戲結束', canvas.width / 2, canvas.height / 2 - 40);
+                
+                ctx.fillStyle = '#FFF';
+                ctx.font = '24px Arial';
+                ctx.fillText(`最終得分: ${score}`, canvas.width / 2, canvas.height / 2 + 10);
+                
+                if (score >= highScore && score > 0) {
+                    ctx.fillStyle = '#FFD700'; // 金色
+                    ctx.fillText(`新紀錄！`, canvas.width / 2, canvas.height / 2 + 50);
+                }
+                
+                difficultySelect.disabled = false;
+            } else if (isPaused) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#0DC2FF';
+                ctx.font = 'bold 36px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('遊戲暫停', canvas.width / 2, canvas.height / 2);
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
