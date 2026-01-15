@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Graveyard Shooter - Weapon Skins & Progression</title>
+    <title>Graveyard Shooter - New 3D Weapon Model</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Arial Black', sans-serif; background-color: #000; user-select: none; }
         
@@ -126,17 +126,17 @@
 
         <div class="hud-right" id="ammo-container">
             <div><span id="ammo-count">12</span> / <span id="ammo-reserve">36</span></div>
-            <div id="weapon-name">制式手槍 M1</div>
+            <div id="weapon-name">突擊步槍 AR-X</div>
         </div>
     </div>
     
     <div id="blocker">
         <div id="instructions">
             <h1 style="color:red; font-size:60px; margin:0;">墳場獵殺</h1>
-            <h3 style="color:#aaa;">生存進化版</h3>
-            <p>每 1000 分 敵人變強</p>
+            <h3 style="color:#aaa;">武器升級版</h3>
+            <p>體驗全新 3D 武器模型</p>
             <p>WASD 移動 | 空白鍵 跳躍 | R 換彈 | <b>E 拾取</b></p>
-            <p style="color: #00ffff; font-size: 18px;">尋找金色光芒升級武器塗裝</p>
+            <p style="color: #00ffff; font-size: 18px;">每 1000 分難度提升</p>
         </div>
     </div>
 
@@ -155,7 +155,7 @@
             isSuperWeapon: false,
             canShoot: true, isReloading: false,
             score: 0,
-            difficultyLevel: 1 // 難度等級
+            difficultyLevel: 1 
         };
 
         const velocity = new THREE.Vector3();
@@ -167,11 +167,11 @@
         let dropItems = []; 
         let focusItem = null; 
         let lastShootTime = 0;
-        let playerWeapon;
+        let playerWeaponGroup; // 改為 Group
         
         // Materials
         let floorMaterial, stoneMaterial, woodMaterial, ammoMat, weaponDropMat;
-        let normalGunMat, superGunMat; // 新增兩種武器材質
+        let normalGunMat, superGunMat; 
 
         // UI
         const hpFill = document.getElementById('hp-bar-fill');
@@ -190,7 +190,7 @@
         init();
         animate();
 
-        // 升級版紋理生成器
+        // 紋理生成器
         function generateTexture(type) {
             const size = 512;
             const canvas = document.createElement('canvas');
@@ -198,27 +198,31 @@
             canvas.height = size;
             const ctx = canvas.getContext('2d');
 
-            // 基礎填充
             if (type === 'grass') ctx.fillStyle = '#1a221a'; 
             if (type === 'stone') ctx.fillStyle = '#333333';
             if (type === 'wood') ctx.fillStyle = '#221100';
             if (type === 'ammo') ctx.fillStyle = '#004400';
             if (type === 'gold') ctx.fillStyle = '#665500';
             
-            // 武器塗裝 1: 普通金屬迷彩
             if (type === 'gun_normal') {
-                ctx.fillStyle = '#222222';
+                ctx.fillStyle = '#333344'; // 深藍灰色底
                 ctx.fillRect(0,0,size,size);
-                for(let i=0; i<100; i++) {
-                    ctx.fillStyle = Math.random()<0.5 ? '#333' : '#111';
-                    ctx.beginPath();
-                    ctx.arc(Math.random()*size, Math.random()*size, Math.random()*50+20, 0, Math.PI*2);
-                    ctx.fill();
+                // 科技感綫條
+                ctx.strokeStyle = '#444455';
+                ctx.lineWidth = 2;
+                for(let i=0; i<50; i+=10) {
+                    ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(size, i+size/2); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i+size/2, size); ctx.stroke();
                 }
-                // 加一點刮痕
-                ctx.strokeStyle = '#555';
-                ctx.lineWidth = 1;
-                for(let i=0; i<50; i++) {
+                return new THREE.CanvasTexture(canvas);
+            }
+
+            if (type === 'gun_super') {
+                const grad = ctx.createLinearGradient(0,0,size,size);
+                grad.addColorStop(0, '#AA8800'); grad.addColorStop(1, '#FFDD00');
+                ctx.fillStyle = grad; ctx.fillRect(0,0,size,size);
+                ctx.strokeStyle = '#ff5500'; ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 15; ctx.lineWidth = 5;
+                for(let i=0; i<25; i++) {
                     ctx.beginPath();
                     ctx.moveTo(Math.random()*size, Math.random()*size);
                     ctx.lineTo(Math.random()*size, Math.random()*size);
@@ -227,54 +231,91 @@
                 return new THREE.CanvasTexture(canvas);
             }
 
-            // 武器塗裝 2: 超級熔岩黃金
-            if (type === 'gun_super') {
-                // 黃金底色
-                const grad = ctx.createLinearGradient(0,0,size,size);
-                grad.addColorStop(0, '#AA8800');
-                grad.addColorStop(1, '#FFDD00');
-                ctx.fillStyle = grad;
-                ctx.fillRect(0,0,size,size);
-                
-                // 红色能量紋路
-                ctx.strokeStyle = '#ff3300';
-                ctx.shadowColor = '#ff0000';
-                ctx.shadowBlur = 20;
-                ctx.lineWidth = 8;
-                for(let i=0; i<20; i++) {
-                    ctx.beginPath();
-                    ctx.moveTo(0, Math.random()*size);
-                    ctx.bezierCurveTo(size/3, Math.random()*size, size*2/3, Math.random()*size, size, Math.random()*size);
-                    ctx.stroke();
-                }
-                return new THREE.CanvasTexture(canvas);
-            }
-
-            // 其他環境紋理
             ctx.fillRect(0, 0, size, size);
             for (let i = 0; i < 3000; i++) {
                 const x = Math.random() * size;
                 const y = Math.random() * size;
                 const w = Math.random() * 3 + 1;
-                
-                if (type === 'grass') {
-                    ctx.fillStyle = Math.random() < 0.5 ? '#113311' : '#224422';
-                    ctx.fillRect(x, y, w, w);
-                } else if (type === 'stone') {
-                    ctx.fillStyle = Math.random() < 0.5 ? '#222' : '#555';
-                    ctx.fillRect(x, y, w*2, w*2);
-                } else if (type === 'gold') {
-                     ctx.fillStyle = '#ffdd00';
-                     ctx.fillRect(x, y, 2, 2);
-                } else if (type === 'ammo') {
-                    ctx.fillStyle = '#00ff00';
-                    if(i < 50) ctx.fillRect(100, i*10, 312, 5); 
-                }
+                if (type === 'grass') { ctx.fillStyle = Math.random() < 0.5 ? '#113311' : '#224422'; ctx.fillRect(x, y, w, w); }
+                else if (type === 'stone') { ctx.fillStyle = Math.random() < 0.5 ? '#222' : '#555'; ctx.fillRect(x, y, w*2, w*2); }
+                else if (type === 'gold') { ctx.fillStyle = '#ffdd00'; ctx.fillRect(x, y, 2, 2); }
+                else if (type === 'ammo') { ctx.fillStyle = '#00ff00'; if(i < 50) ctx.fillRect(100, i*10, 312, 5); }
             }
             const texture = new THREE.CanvasTexture(canvas);
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
             return texture;
+        }
+
+        // --- 全新：建立複雜的槍枝模型組合 ---
+        function createComplexGunModel(material) {
+            const gunGroup = new THREE.Group();
+
+            // 1. 主槍身 (Main Body)
+            const bodyGeo = new THREE.BoxGeometry(0.6, 0.8, 2.5);
+            const body = new THREE.Mesh(bodyGeo, material);
+            body.position.set(0, 0, 0);
+            gunGroup.add(body);
+
+            // 2. 上機匣 (Upper Receiver)
+            const upperGeo = new THREE.BoxGeometry(0.5, 0.4, 2.8);
+            const upper = new THREE.Mesh(upperGeo, material);
+            upper.position.set(0, 0.6, -0.2);
+            gunGroup.add(upper);
+
+            // 3. 槍管 (Barrel) - 圓柱體
+            const barrelGeo = new THREE.CylinderGeometry(0.12, 0.12, 2, 16);
+            barrelGeo.rotateX(Math.PI / 2);
+            const barrel = new THREE.Mesh(barrelGeo, material);
+            barrel.position.set(0, 0.5, -2.5);
+            gunGroup.add(barrel);
+
+            // 4. 槍口制退器 (Muzzle Brake)
+            const muzzleGeo = new THREE.CylinderGeometry(0.18, 0.15, 0.5, 8);
+            muzzleGeo.rotateX(Math.PI / 2);
+            const muzzle = new THREE.Mesh(muzzleGeo, material);
+            muzzle.position.set(0, 0.5, -3.6);
+            gunGroup.add(muzzle);
+
+            // 5. 握把 (Grip) - 傾斜的方塊
+            const gripGeo = new THREE.BoxGeometry(0.5, 1.2, 0.7);
+            const grip = new THREE.Mesh(gripGeo, material);
+            grip.rotation.x = Math.PI / 6;
+            grip.position.set(0, -0.8, 0.8);
+            gunGroup.add(grip);
+
+            // 6. 彈匣 (Magazine)
+            const magGeo = new THREE.BoxGeometry(0.4, 1.5, 0.8);
+            const mag = new THREE.Mesh(magGeo, material);
+            mag.rotation.x = -Math.PI / 12;
+            mag.position.set(0, -0.8, -0.5);
+            gunGroup.add(mag);
+
+            // 7. 瞄準鏡 (Scope)
+            const scopeBaseGeo = new THREE.BoxGeometry(0.4, 0.2, 1);
+            const scopeBase = new THREE.Mesh(scopeBaseGeo, material);
+            scopeBase.position.set(0, 0.9, 0);
+            gunGroup.add(scopeBase);
+            
+            const scopeTubeGeo = new THREE.CylinderGeometry(0.2, 0.25, 1.2, 16);
+            scopeTubeGeo.rotateX(Math.PI / 2);
+            const scopeTube = new THREE.Mesh(scopeTubeGeo, material);
+            scopeTube.position.set(0, 1.1, -0.2);
+            gunGroup.add(scopeTube);
+
+            // 8. 能量條 (Glow Bar - 放在側面)
+            const glowGeo = new THREE.BoxGeometry(0.05, 0.15, 1.8);
+            const glowMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+            const glowBar = new THREE.Mesh(glowGeo, glowMat);
+            glowBar.position.set(0.31, 0.1, 0);
+            glowBar.name = "glowBar";
+            gunGroup.add(glowBar);
+
+            // 整體位置調整
+            gunGroup.position.set(2, -1.8, -3);
+            gunGroup.scale.set(1.5, 1.5, 1.5); // 放大一點
+
+            return gunGroup;
         }
 
         function init() {
@@ -304,32 +345,18 @@
             // --- 武器材質設定 ---
             normalGunMat = new THREE.MeshStandardMaterial({ 
                 map: generateTexture('gun_normal'),
-                roughness: 0.7, 
-                metalness: 0.6 
+                roughness: 0.5, metalness: 0.7 
             });
             
             superGunMat = new THREE.MeshStandardMaterial({ 
                 map: generateTexture('gun_super'),
-                roughness: 0.2, 
-                metalness: 1.0,
-                emissive: 0xaa4400, // 自體發光
-                emissiveIntensity: 0.5
+                roughness: 0.2, metalness: 1.0,
+                emissive: 0xaa4400, emissiveIntensity: 0.6
             });
 
-            const gunGeo = new THREE.BoxGeometry(0.8, 0.8, 3.5);
-            // 初始使用普通材質
-            playerWeapon = new THREE.Mesh(gunGeo, normalGunMat);
-            playerWeapon.position.set(1.8, -1.2, -2.5);
-            
-            // 能量條 (裝飾)
-            const glowGeo = new THREE.BoxGeometry(0.2, 0.1, 2.5);
-            const glowMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-            const glowBar = new THREE.Mesh(glowGeo, glowMat);
-            glowBar.position.set(0, 0.46, 0);
-            glowBar.name = "glowBar";
-            playerWeapon.add(glowBar);
-            
-            camera.add(playerWeapon);
+            // 使用新的函數創建複雜槍枝
+            playerWeaponGroup = createComplexGunModel(normalGunMat);
+            camera.add(playerWeaponGroup);
 
             controls = new PointerLockControls(camera, document.body);
 
@@ -392,8 +419,6 @@
             ammoCountEl.innerText = player.ammo;
             ammoReserveEl.innerText = player.reserveAmmo;
             scoreValEl.innerText = player.score; 
-            
-            // 更新難度文字
             levelEl.innerText = `DANGER LEVEL: ${player.difficultyLevel}`;
             
             if (player.ammo <= 3) ammoCountEl.style.color = 'red';
@@ -407,11 +432,9 @@
         }
 
         function checkLevelUp() {
-            // 每 1000 分升一級
             const newLevel = 1 + Math.floor(player.score / 1000);
             if (newLevel > player.difficultyLevel) {
                 player.difficultyLevel = newLevel;
-                // 升級提示特效
                 levelEl.style.color = 'red';
                 levelEl.style.fontSize = '30px';
                 setTimeout(() => {
@@ -423,7 +446,6 @@
 
         function addScore(amount) {
             player.score += amount;
-            // 分數跳動效果
             scoreValEl.style.color = '#00ff00';
             scoreValEl.style.fontSize = '50px';
             setTimeout(() => {
@@ -431,7 +453,7 @@
                 scoreValEl.style.fontSize = '40px';
             }, 100);
             
-            checkLevelUp(); // 檢查是否升級
+            checkLevelUp(); 
             updateUI();
         }
 
@@ -441,17 +463,17 @@
             player.isReloading = true;
             crosshair.classList.add('reloading');
             
-            const originalY = -1.2;
+            const originalY = -1.8; // 更新後的初始 Y 位置
             let timer = 0;
             
             const reloadInterval = setInterval(() => {
                 timer += 0.05;
                 if (timer < 0.5) {
-                    playerWeapon.rotation.x -= 0.1;
-                    playerWeapon.position.y -= 0.05;
+                    playerWeaponGroup.rotation.x -= 0.1;
+                    playerWeaponGroup.position.y -= 0.05;
                 } else if (timer > 1.0) {
-                    playerWeapon.rotation.x += 0.1; 
-                    playerWeapon.position.y += 0.05;
+                    playerWeaponGroup.rotation.x += 0.1; 
+                    playerWeaponGroup.position.y += 0.05;
                 }
 
                 if (timer >= 1.5) {
@@ -462,8 +484,8 @@
                     player.ammo += take;
                     player.reserveAmmo -= take;
                     
-                    playerWeapon.rotation.x = 0;
-                    playerWeapon.position.y = originalY;
+                    playerWeaponGroup.rotation.x = 0;
+                    playerWeaponGroup.position.y = originalY;
                     
                     player.isReloading = false;
                     crosshair.classList.remove('reloading');
@@ -508,10 +530,7 @@
         }
 
         function spawnGhost() {
-            // 難度控制：數量上限
-            // 基礎 10 隻，每升一級多 2 隻
             const maxEnemies = 10 + (player.difficultyLevel - 1) * 2;
-            
             if (enemyUnits.length > maxEnemies) return;
             
             const ghostGroup = new THREE.Group();
@@ -546,14 +565,12 @@
 
             scene.add(ghostGroup);
             
-            // 難度控制：速度
-            // 基礎速度 15-25，每級增加 10%
             const speedMultiplier = 1 + (player.difficultyLevel - 1) * 0.1;
             const baseSpeed = 15 + Math.random() * 10;
             
             enemyUnits.push({ 
                 group: ghostGroup, 
-                hp: 100 + (player.difficultyLevel * 10), // 血量也稍微增加
+                hp: 100 + (player.difficultyLevel * 10), 
                 speed: baseSpeed * speedMultiplier, 
                 floatOffset: Math.random() * 100 
             });
@@ -612,14 +629,19 @@
                     player.damage = 100; 
                     player.isSuperWeapon = true;
                     
-                    // --- 切換武器塗裝 ---
                     weaponNameEl.innerText = "★ 黃金毀滅者 ★";
                     weaponNameEl.style.color = "gold";
                     
-                    playerWeapon.material = superGunMat; // 套用新的黃金材質
-                    
-                    const bar = playerWeapon.getObjectByName("glowBar");
-                    if(bar) bar.material.color.setHex(0xff0000); 
+                    // 更新整個 Group 的材質
+                    playerWeaponGroup.traverse((child) => {
+                        if (child.isMesh) {
+                            if (child.name === 'glowBar') {
+                                child.material.color.setHex(0xff0000); // 能量條變紅
+                            } else {
+                                child.material = superGunMat; // 其他部件套用黃金材質
+                            }
+                        }
+                    });
 
                     addScore(500); 
                     createFloatingText("獲得超級武器!", item.position, '#ffff00');
@@ -700,12 +722,12 @@
             player.ammo--;
             updateUI();
 
-            if(playerWeapon) {
-                playerWeapon.position.z += 0.5;
-                playerWeapon.rotation.x += 0.1;
+            if(playerWeaponGroup) {
+                playerWeaponGroup.position.z += 0.3;
+                playerWeaponGroup.rotation.x += 0.05;
                 setTimeout(()=> {
-                    playerWeapon.position.z -= 0.5;
-                    playerWeapon.rotation.x -= 0.1;
+                    playerWeaponGroup.position.z -= 0.3;
+                    playerWeaponGroup.rotation.x -= 0.05;
                 }, 80);
             }
 
@@ -830,10 +852,7 @@
                 pickupMsg.style.display = 'none';
             }
 
-            // --- 怪物生成邏輯 (受難度影響) ---
-            // 基礎生成機率 0.02, 每級增加一點點頻率
             const spawnChance = 0.02 + (player.difficultyLevel * 0.005);
-            // 檢查是否達到當前等級的數量上限
             const maxEnemies = 10 + (player.difficultyLevel - 1) * 2;
 
             if (enemyUnits.length < maxEnemies && Math.random() < spawnChance && player.hp > 0) {
