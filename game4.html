@@ -2,39 +2,37 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Graveyard Survival - Procedural Edition</title>
+    <title>Advanced Three.js FPS Shooter</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Courier New', Courier, monospace; background-color: #000; }
+        body { margin: 0; overflow: hidden; font-family: 'Courier New', Courier, monospace; }
         #blocker {
             position: absolute; width: 100%; height: 100%;
-            background-color: rgba(0,0,0,0.6);
+            background-color: rgba(0,0,0,0.7);
             display: flex; flex-direction: column;
             justify-content: center; align-items: center;
             color: #ffffff; z-index: 999;
         }
-        #instructions { font-size: 30px; cursor: pointer; text-align: center; text-shadow: 2px 2px 4px #000; }
+        #instructions { font-size: 30px; cursor: pointer; text-align: center; }
         #ui {
             position: absolute; top: 10px; left: 10px; color: #00ff00;
-            font-size: 24px; font-weight: bold; pointer-events: none;
-            text-shadow: 2px 2px 4px black;
+            font-size: 20px; font-weight: bold; pointer-events: none;
+            text-shadow: 1px 1px 2px black;
         }
         #crosshair {
             position: absolute; top: 50%; left: 50%;
-            width: 24px; height: 24px;
+            width: 20px; height: 20px;
             background: transparent;
-            border: 2px solid rgba(0, 255, 0, 0.7);
+            border: 2px solid rgba(0, 255, 0, 0.8);
             border-radius: 50%;
             transform: translate(-50%, -50%);
             pointer-events: none;
         }
         #crosshair::after {
             content: ''; position: absolute; top: 50%; left: 50%;
-            width: 4px; height: 4px; background: #00ff00;
+            width: 4px; height: 4px; background: red;
             transform: translate(-50%, -50%); border-radius: 50%;
         }
-        #loading { position: absolute; bottom: 20px; left: 20px; color: white; background: rgba(0,0,0,0.5); padding: 5px; display: block;}
     </style>
-    
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
     
     <script type="importmap">
@@ -48,17 +46,16 @@
 </head>
 <body>
     <div id="ui">
-        KILLS: <span id="score">0</span> | HEALTH: <span id="health">100</span>%
+        SCORE: <span id="score">0</span> | HEALTH: <span id="health">100</span>
     </div>
     <div id="crosshair"></div>
-    <div id="loading">正在加載紋理... (請稍候)</div>
     
     <div id="blocker">
         <div id="instructions">
-            <p style="font-size:50px; letter-spacing: 5px;">幽靈獵人</p>
-            <p>點擊畫面開始遊戲</p>
-            <p>W, A, S, D 移動 | 空白鍵 跳躍 | 滑鼠左鍵 射擊</p>
-            <p style="font-size: 16px; color: #aaa;">敵人現已內建，保證可見</p>
+            <p style="font-size:40px">點擊畫面開始遊戲</p>
+            <p>移動: W, A, S, D</p>
+            <p>跳躍: SPACE</p>
+            <p>射擊: 滑鼠左鍵</p>
         </div>
     </div>
 
@@ -66,352 +63,235 @@
         import * as THREE from 'three';
         import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 
+        // --- 全局變數設置 ---
         let camera, scene, renderer, controls;
         let raycaster;
-        const clock = new THREE.Clock();
         
+        // 移動相關變數
         const velocity = new THREE.Vector3();
         const direction = new THREE.Vector3();
         let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
         let canJump = false;
         
-        let enemyUnits = []; 
+        // 遊戲邏輯變數
+        let prevTime = performance.now();
+        const enemies = [];
         let score = 0;
         let health = 100;
         let lastShootTime = 0;
-        let playerWeapon; // 我們也用幾何體自己畫一把槍
         
-        // 紋理材質
-        let stoneMaterial, floorMaterial, woodMaterial;
-        
+        // HTML 元素
         const scoreEl = document.getElementById('score');
         const healthEl = document.getElementById('health');
         const blocker = document.getElementById('blocker');
-        const loadingEl = document.getElementById('loading');
+        const instructions = document.getElementById('instructions');
 
         init();
         animate();
 
         function init() {
+            // 1. 初始化場景
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x111118); // 深色夜空
-            scene.fog = new THREE.FogExp2(0x111118, 0.006); 
+            scene.background = new THREE.Color(0x111111); // 深色背景
+            scene.fog = new THREE.Fog(0x111111, 0, 750); // 迷霧效果增強深度感
 
-            // --- 燈光 ---
-            const ambientLight = new THREE.AmbientLight(0x8888aa, 0.7); 
-            scene.add(ambientLight);
+            // 2. 設置燈光
+            const light = new THREE.HemisphereLight(0xeeeeff, 0x777788, 0.75);
+            light.position.set(0.5, 1, 0.75);
+            scene.add(light);
             
-            const moonLight = new THREE.DirectionalLight(0xffffff, 1.0);
-            moonLight.position.set(50, 100, 50);
-            moonLight.castShadow = true;
-            moonLight.shadow.mapSize.width = 2048;
-            moonLight.shadow.mapSize.height = 2048;
-            scene.add(moonLight);
+            // 點光源模擬太陽/主要光源
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(100, 100, 50);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
 
-            // --- 相機與手電筒 ---
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.y = 12;
-            
-            const flashlight = new THREE.SpotLight(0xffffee, 100, 300, 0.5, 0.5, 1);
-            flashlight.position.set(0, 0, 0);
-            flashlight.target.position.set(0, 0, -1);
-            camera.add(flashlight);
-            camera.add(flashlight.target);
+            // 3. 設置相機
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+            camera.position.y = 10; // 玩家高度
 
-            // --- 內建槍枝模型 (保證可見) ---
-            const gunGeo = new THREE.BoxGeometry(1, 1, 4);
-            const gunMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.2 });
-            playerWeapon = new THREE.Mesh(gunGeo, gunMat);
-            playerWeapon.position.set(2, -1.5, -3); // 右手位置
-            
-            // 槍管發光條
-            const glowGeo = new THREE.BoxGeometry(0.2, 0.2, 3);
-            const glowMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-            const glowBar = new THREE.Mesh(glowGeo, glowMat);
-            glowBar.position.y = 0.6;
-            playerWeapon.add(glowBar);
-            
-            camera.add(playerWeapon);
-
+            // 4. 控制器 (FPS 視角)
             controls = new PointerLockControls(camera, document.body);
 
-            const instructions = document.getElementById('instructions');
-            instructions.addEventListener('click', function () { controls.lock(); });
-            controls.addEventListener('lock', function () { instructions.style.display = 'none'; blocker.style.display = 'none'; });
-            controls.addEventListener('unlock', function () { blocker.style.display = 'flex'; instructions.style.display = ''; });
+            instructions.addEventListener('click', function () {
+                controls.lock();
+            });
+
+            controls.addEventListener('lock', function () {
+                instructions.style.display = 'none';
+                blocker.style.display = 'none';
+            });
+
+            controls.addEventListener('unlock', function () {
+                blocker.style.display = 'flex';
+                instructions.style.display = '';
+            });
+
             scene.add(controls.getObject());
+
+            // 5. 鍵盤事件監聽
+            const onKeyDown = function (event) {
+                switch (event.code) {
+                    case 'ArrowUp': case 'KeyW': moveForward = true; break;
+                    case 'ArrowLeft': case 'KeyA': moveLeft = true; break;
+                    case 'ArrowDown': case 'KeyS': moveBackward = true; break;
+                    case 'ArrowRight': case 'KeyD': moveRight = true; break;
+                    case 'Space': if (canJump === true) velocity.y += 350; canJump = false; break;
+                }
+            };
+
+            const onKeyUp = function (event) {
+                switch (event.code) {
+                    case 'ArrowUp': case 'KeyW': moveForward = false; break;
+                    case 'ArrowLeft': case 'KeyA': moveLeft = false; break;
+                    case 'ArrowDown': case 'KeyS': moveBackward = false; break;
+                    case 'ArrowRight': case 'KeyD': moveRight = false; break;
+                }
+            };
 
             document.addEventListener('keydown', onKeyDown);
             document.addEventListener('keyup', onKeyUp);
-            document.addEventListener('mousedown', onMouseDown);
-            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('mousedown', onMouseDown); // 射擊
 
+            // 6. 射線 (用於射擊判定)
             raycaster = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, - 1, 0), 0, 10);
 
-            // --- 紋理加載 (Texture Loader) ---
-            const textureLoader = new THREE.TextureLoader();
-            
-            // 定義加載完成後的動作
-            const onLoad = () => {
-                loadingEl.style.display = 'none';
-                createEnvironment(); // 紋理準備好後再建立環境
-                // 立即生成幾個敵人
-                for(let i=0; i<3; i++) spawnGhost(); 
-            };
-
-            // 使用 Promise.all 等待所有紋理加載
-            Promise.all([
-                new Promise(resolve => textureLoader.load('https://threejs.org/examples/textures/terrain/grasslight-big.jpg', resolve)),
-                new Promise(resolve => textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/paving/PavingStones092_1K_Color.jpg', resolve)),
-                new Promise(resolve => textureLoader.load('https://threejs.org/examples/textures/hardwood2_diffuse.jpg', resolve))
-            ]).then((textures) => {
-                // 地面材質
-                textures[0].wrapS = textures[0].wrapT = THREE.RepeatWrapping;
-                textures[0].repeat.set(50, 50);
-                floorMaterial = new THREE.MeshStandardMaterial({ map: textures[0], roughness: 0.8 });
-
-                // 石頭材質 (墓碑)
-                stoneMaterial = new THREE.MeshStandardMaterial({ map: textures[1], roughness: 0.6 });
-
-                // 木頭材質 (樹)
-                woodMaterial = new THREE.MeshStandardMaterial({ map: textures[2], roughness: 0.9 });
-
-                onLoad();
-            }).catch(err => {
-                console.error("Texture load failed, using colors", err);
-                // 備用方案：如果紋理失敗，使用純色
-                floorMaterial = new THREE.MeshStandardMaterial({ color: 0x113311 });
-                stoneMaterial = new THREE.MeshStandardMaterial({ color: 0x555555 });
-                woodMaterial = new THREE.MeshStandardMaterial({ color: 0x332211 });
-                onLoad();
+            // 7. 構建環境 (地板)
+            const floorGeometry = new THREE.PlaneGeometry(2000, 2000, 100, 100);
+            floorGeometry.rotateX(- Math.PI / 2);
+            const floorMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x222222,
+                wireframe: false
             });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            scene.add(floor);
             
+            // 添加地板網格輔助線
+            const gridHelper = new THREE.GridHelper(2000, 100, 0x00ff00, 0x444444);
+            scene.add(gridHelper);
+
+            // 8. 隨機生成一些障礙物
+            const boxGeometry = new THREE.BoxGeometry(20, 20, 20);
+            const boxMaterial = new THREE.MeshStandardMaterial({ color: 0x4444aa });
+
+            for (let i = 0; i < 50; i++) {
+                const box = new THREE.Mesh(boxGeometry, boxMaterial);
+                box.position.x = Math.floor(Math.random() * 20 - 10) * 40;
+                box.position.y = 10;
+                box.position.z = Math.floor(Math.random() * 20 - 10) * 40;
+                scene.add(box);
+            }
+
+            // 9. 渲染器設置
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
             document.body.appendChild(renderer.domElement);
+
+            window.addEventListener('resize', onWindowResize);
         }
 
-        function createEnvironment() {
-            // 地面
-            const floorGeometry = new THREE.PlaneGeometry(1000, 1000, 100, 100);
-            floorGeometry.rotateX(- Math.PI / 2);
-            // 製作地形起伏
-            const pos = floorGeometry.attributes.position;
-            for ( let i = 0; i < pos.count; i ++ ) {
-                 if (pos.getY(i) === 0) pos.setY( i, Math.random() * 2); 
-            }
-            floorGeometry.computeVertexNormals();
-            
-            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-            floor.receiveShadow = true;
-            scene.add(floor);
-
-            // 墓碑幾何體
-            const tombGeo = new THREE.BoxGeometry(5, 8, 2);
-            // 枯樹幾何體
-            const treeGeo = new THREE.ConeGeometry(3, 25, 6);
-
-            for (let i = 0; i < 200; i++) {
-                // 隨機坐標
-                const x = (Math.random() - 0.5) * 800;
-                const z = (Math.random() - 0.5) * 800;
-
-                // --- 關鍵修改：避開出生點 ---
-                // 如果距離中心點 (0,0) 小於 60 單位，則跳過這次生成
-                if (Math.abs(x) < 60 && Math.abs(z) < 60) continue;
-
-                const isTree = Math.random() < 0.2; // 20% 機率是樹
-
-                if (isTree) {
-                    const tree = new THREE.Mesh(treeGeo, woodMaterial);
-                    tree.position.set(x, 12.5, z);
-                    tree.castShadow = true;
-                    scene.add(tree);
-                } else {
-                    const tomb = new THREE.Mesh(tombGeo, stoneMaterial);
-                    tomb.position.set(x, 4, z);
-                    tomb.rotation.y = (Math.random() - 0.5); // 隨機旋轉
-                    tomb.rotation.x = (Math.random() - 0.5) * 0.2; // 歪斜
-                    tomb.castShadow = true;
-                    tomb.receiveShadow = true;
-                    scene.add(tomb);
-                }
-            }
-        }
-
-        // --- 創建程式化敵人 (Ghost) ---
-        // 不需要外部模型，直接用代碼畫出來
-        function spawnGhost() {
-            if (enemyUnits.length > 20) return;
-
-            const ghostGroup = new THREE.Group();
-
-            // 身體 (圓錐體)
-            const bodyGeo = new THREE.ConeGeometry(4, 10, 8, 1, true); // open ended
-            const bodyMat = new THREE.MeshStandardMaterial({ 
-                color: 0xccffff, 
-                emissive: 0x224444,
-                transparent: true, opacity: 0.8, side: THREE.DoubleSide 
-            });
-            const body = new THREE.Mesh(bodyGeo, bodyMat);
-            body.position.y = 5;
-            ghostGroup.add(body);
-
-            // 頭部 (球體)
-            const headGeo = new THREE.SphereGeometry(2.5, 16, 16);
-            const head = new THREE.Mesh(headGeo, bodyMat);
-            head.position.y = 10;
-            ghostGroup.add(head);
-
-            // 眼睛 (發光球體)
-            const eyeGeo = new THREE.SphereGeometry(0.5);
-            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-            
-            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-            leftEye.position.set(-1, 10.5, 2);
-            ghostGroup.add(leftEye);
-
-            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-            rightEye.position.set(1, 10.5, 2);
-            ghostGroup.add(rightEye);
-            
-            // 設定生成位置 (遠離玩家)
-            const angle = Math.random() * Math.PI * 2;
-            const radius = 80 + Math.random() * 200;
-            ghostGroup.position.x = controls.getObject().position.x + Math.cos(angle) * radius;
-            ghostGroup.position.z = controls.getObject().position.z + Math.sin(angle) * radius;
-            ghostGroup.position.y = 2; // 初始高度
-
-            scene.add(ghostGroup);
-            
-            // 存入敵人列表，給予隨機速度和上下浮動的參數
-            enemyUnits.push({ 
-                group: ghostGroup, 
-                speed: 15 + Math.random() * 10, 
-                floatOffset: Math.random() * 100 
-            });
-        }
-
-        function onKeyDown(event) {
-            switch (event.code) {
-                case 'KeyW': moveForward = true; break;
-                case 'KeyA': moveLeft = true; break;
-                case 'KeyS': moveBackward = true; break;
-                case 'KeyD': moveRight = true; break;
-                case 'Space': if (canJump === true) velocity.y += 250; canJump = false; break;
-            }
-        }
-        function onKeyUp(event) {
-            switch (event.code) {
-                case 'KeyW': moveForward = false; break;
-                case 'KeyA': moveLeft = false; break;
-                case 'KeyS': moveBackward = false; break;
-                case 'KeyD': moveRight = false; break;
-            }
-        }
-
+        // --- 射擊邏輯 ---
         function onMouseDown(event) {
-            if (!controls.isLocked || health <= 0) return;
+            if (!controls.isLocked) return;
+
+            // 簡單的冷卻時間
             const now = performance.now();
             if (now - lastShootTime < 200) return; 
             lastShootTime = now;
 
-            // 射擊動畫
-            if(playerWeapon) {
-                playerWeapon.position.z += 0.5;
-                setTimeout(()=> playerWeapon.position.z -= 0.5, 50);
-            }
-            // 槍口閃光
-            const flash = new THREE.PointLight(0x00ff00, 5, 20);
-            flash.position.set(2, -1, -5);
+            // 視覺效果：槍口閃光 (簡單模擬)
+            const flash = new THREE.PointLight(0xffaa00, 1, 30);
+            flash.position.set(0, -1, -2);
             camera.add(flash);
             setTimeout(() => camera.remove(flash), 50);
 
             // 射線檢測
             const shootRaycaster = new THREE.Raycaster();
-            shootRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            shootRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera); // 從螢幕中心發射
 
-            // 檢查所有敵人 Group 的子物件
-            // 我們需要建立一個臨時陣列包含所有敵人的所有部分
-            let allEnemyParts = [];
-            enemyUnits.forEach(u => {
-                u.group.children.forEach(child => allEnemyParts.push(child));
-            });
-
-            const intersects = shootRaycaster.intersectObjects(allEnemyParts);
+            const intersects = shootRaycaster.intersectObjects(enemies);
 
             if (intersects.length > 0) {
-                // 找到擊中的是哪個敵人的部分
-                const hitObject = intersects[0].object;
-                const hitGroup = hitObject.parent; // 敵人的 Mesh 父級是 Group
+                // 擊中敵人
+                const hitEnemy = intersects[0].object;
+                scene.remove(hitEnemy); // 移除敵人
                 
-                // 查找這個 Group 在 enemyUnits 中的索引
-                const index = enemyUnits.findIndex(u => u.group === hitGroup);
+                // 從陣列中移除
+                const index = enemies.indexOf(hitEnemy);
+                if (index > -1) enemies.splice(index, 1);
                 
-                if (index > -1) {
-                    destroyEnemy(index);
-                }
+                score += 100;
+                scoreEl.innerText = score;
+                
+                // 擊中特效
+                createExplosion(intersects[0].point);
             }
         }
 
-        function destroyEnemy(index) {
-            const unit = enemyUnits[index];
-            scene.remove(unit.group);
-            enemyUnits.splice(index, 1);
-            score++;
-            scoreEl.innerText = score;
+        function createExplosion(position) {
+            // 這裡可以做更複雜的粒子系統，暫時用紅色方塊代替爆炸
+            const geometry = new THREE.BoxGeometry(2, 2, 2);
+            const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const particle = new THREE.Mesh(geometry, material);
+            particle.position.copy(position);
+            scene.add(particle);
             
-            // 粒子爆炸效果
-            const pGeo = new THREE.BufferGeometry();
-            const pCount = 20;
-            const pPos = new Float32Array(pCount * 3);
-            for(let i=0; i<pCount*3; i++) pPos[i] = (Math.random()-0.5)*5;
-            pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-            const pMat = new THREE.PointsMaterial({color: 0xccffff, size: 1});
-            const particles = new THREE.Points(pGeo, pMat);
-            particles.position.copy(unit.group.position);
-            particles.position.y += 5;
-            scene.add(particles);
-
-            setTimeout(() => scene.remove(particles), 500);
+            // 簡單動畫：縮小並消失
+            let scale = 1.0;
+            const animateExplosion = () => {
+                scale -= 0.1;
+                particle.scale.set(scale, scale, scale);
+                if (scale > 0) requestAnimationFrame(animateExplosion);
+                else scene.remove(particle);
+            };
+            animateExplosion();
         }
 
-        function updateGameState(delta) {
+        // --- 敵人生成與 AI ---
+        function spawnEnemy() {
+            if (enemies.length > 10) return; // 限制數量
+
+            const geometry = new THREE.DodecahedronGeometry(10); // 多面體作為敵人
+            const material = new THREE.MeshStandardMaterial({ color: 0xff0000, roughness: 0.2, metalness: 0.5 });
+            const enemy = new THREE.Mesh(geometry, material);
+
+            // 隨機位置 (遠離玩家)
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 100 + Math.random() * 200;
+            enemy.position.x = controls.getObject().position.x + Math.cos(angle) * radius;
+            enemy.position.z = controls.getObject().position.z + Math.sin(angle) * radius;
+            enemy.position.y = 10;
+
+            scene.add(enemy);
+            enemies.push(enemy);
+        }
+
+        function updateEnemies(delta) {
             const playerPos = controls.getObject().position;
-            const time = clock.elapsedTime;
+            
+            enemies.forEach(enemy => {
+                // 簡單 AI：朝向玩家移動
+                const direction = new THREE.Vector3().subVectors(playerPos, enemy.position).normalize();
+                enemy.position.add(direction.multiplyScalar(30 * delta)); // 移動速度
+                enemy.rotation.x += 2 * delta;
+                enemy.rotation.y += 2 * delta;
 
-            enemyUnits.forEach(unit => {
-                // 1. 面向玩家
-                unit.group.lookAt(playerPos.x, unit.group.position.y, playerPos.z);
-
-                // 2. 移動
-                const dir = new THREE.Vector3().subVectors(playerPos, unit.group.position).normalize();
-                const dist = unit.group.position.distanceTo(playerPos);
-
-                if (dist > 10) {
-                    unit.group.position.add(dir.multiplyScalar(unit.speed * delta));
-                } else {
-                    // 傷害判定
-                    health -= delta * 20;
-                    healthEl.innerText = Math.floor(Math.max(0, health));
-                    blocker.style.backgroundColor = `rgba(255, 0, 0, ${(100-health)/200})`;
+                // 碰撞檢測 (敵人碰到玩家)
+                if (enemy.position.distanceTo(playerPos) < 15) {
+                    health -= 1;
+                    healthEl.innerText = Math.max(0, health);
                     if (health <= 0) {
-                        controls.unlock();
-                        instructions.innerHTML = `<p style="color:red">GAME OVER</p><p>Score: ${score}</p><p>點擊刷新</p>`;
-                        instructions.onclick = () => location.reload();
+                        document.exitPointerLock();
+                        alert("GAME OVER! Score: " + score);
+                        location.reload();
                     }
                 }
-
-                // 3. 漂浮特效 (上下移動)
-                unit.group.position.y = 2 + Math.sin(time * 3 + unit.floatOffset) * 1.5;
             });
-
-            // 自動生成敵人
-            if (enemyUnits.length < 10 && Math.random() < 0.02 && health > 0) {
-                spawnGhost();
-            }
+            
+            // 隨機生成敵人
+            if (Math.random() < 0.02) spawnEnemy();
         }
 
         function onWindowResize() {
@@ -420,38 +300,44 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
+        // --- 遊戲主循環 ---
         function animate() {
             requestAnimationFrame(animate);
-            const delta = clock.getDelta(); 
 
-            if (controls.isLocked === true && health > 0) {
-                // 物理移動
-                velocity.x -= velocity.x * 10.0 * delta;
+            const time = performance.now();
+
+            if (controls.isLocked === true) {
+                const delta = (time - prevTime) / 1000;
+
+                // --- 物理運動邏輯 ---
+                velocity.x -= velocity.x * 10.0 * delta; // 阻尼 (摩擦力)
                 velocity.z -= velocity.z * 10.0 * delta;
-                velocity.y -= 9.8 * 100.0 * delta; 
+                velocity.y -= 9.8 * 100.0 * delta; // 重力
 
                 direction.z = Number(moveForward) - Number(moveBackward);
                 direction.x = Number(moveRight) - Number(moveLeft);
-                direction.normalize();
+                direction.normalize(); // 確保對角線移動速度一致
 
                 if (moveForward || moveBackward) velocity.z -= direction.z * 400.0 * delta;
                 if (moveLeft || moveRight) velocity.x -= direction.x * 400.0 * delta;
 
                 controls.moveRight(- velocity.x * delta);
                 controls.moveForward(- velocity.z * delta);
-                controls.getObject().position.y += (velocity.y * delta);
+                
+                controls.getObject().position.y += (velocity.y * delta); // 應用垂直速度
 
-                if (controls.getObject().position.y < 12) {
+                // 地面碰撞檢測
+                if (controls.getObject().position.y < 10) {
                     velocity.y = 0;
-                    controls.getObject().position.y = 12;
+                    controls.getObject().position.y = 10;
                     canJump = true;
                 }
                 
-                updateGameState(delta);
-            } else if (health > 0) {
-                blocker.style.backgroundColor = 'rgba(0,0,0,0.6)';
+                // --- 更新遊戲邏輯 ---
+                updateEnemies(delta);
             }
 
+            prevTime = time;
             renderer.render(scene, camera);
         }
     </script>
