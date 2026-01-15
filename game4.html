@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Graveyard Shooter - Boss Protocol</title>
+    <title>Graveyard Shooter - Fixed</title>
     <style>
         /* --- 基礎設定 --- */
         body { margin: 0; overflow: hidden; background-color: #000; user-select: none; font-family: 'Segoe UI', 'Courier New', monospace; }
@@ -273,7 +273,7 @@
         const bossDistEl = document.getElementById('boss-dist');
         const bossLvlUi = document.getElementById('boss-lvl-ui');
 
-        // --- 音效引擎 (保持原樣) ---
+        // --- 音效引擎 ---
         const SoundGen = {
             ctx: null, masterGain: null, musicNodes: [], creepyInterval: null,
             init: function() {
@@ -346,7 +346,7 @@
             reload: function() { setTimeout(()=>this.playTone(600,'square',0.1,0.1),0); setTimeout(()=>this.playTone(800,'square',0.1,0.1),400); setTimeout(()=>this.playTone(500,'sine',0.2,0.1),1000); },
             pickup: function() { this.playTone(400, 'sine', 0.1, 0.2); setTimeout(()=>this.playTone(600,'sine',0.2,0.2), 100); },
             footstep: function() { this.playNoise(0.05, 0.1, 200); },
-            bossSpawn: function() { this.playTone(50, 'sawtooth', 3, 0.8, 20); this.playNoise(2, 0.5); } // 新增 BOSS 音效
+            bossSpawn: function() { this.playTone(50, 'sawtooth', 3, 0.8, 20); this.playNoise(2, 0.5); } 
         };
 
         // --- 紋理生成 ---
@@ -374,26 +374,34 @@
             const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
         }
 
+        // --- 修正過的槍械模型函數 ---
+        function createComplexGunModel(material) {
+            const g = new THREE.Group();
+            
+            // 槍身
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 1.2), material); 
+            g.add(body);
+            
+            // 槍管
+            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.5, 12), material);
+            barrel.rotation.x = Math.PI/2;
+            barrel.position.set(0, 0.2, -1); 
+            g.add(barrel);
+            
+            // 能量條 (發光)
+            const glow = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.1, 0.8), new THREE.MeshBasicMaterial({color:0x00ff00}));
+            glow.position.set(0.16, 0.1, -0.2); 
+            glow.name = "glowBar"; 
+            g.add(glow);
+            
+            // 調整到視野適合的位置 (修正了這裡)
+            g.position.set(0.4, -0.4, -0.8); 
+            return g;
+        }
+
         // --- 初始化 ---
         init();
         animate();
-
-        function createComplexGunModel(material) {
-            const g = new THREE.Group();
-            const box = new THREE.BoxGeometry; const cyl = new THREE.CylinderGeometry;
-            
-            // 簡單槍械幾何
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, 2.5), material); g.add(body);
-            const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2, 16).rotateX(Math.PI/2), material);
-            barrel.position.set(0, 0.5, -2.5); g.add(barrel);
-            
-            // 能量條
-            const glow = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.15, 1.8), new THREE.MeshBasicMaterial({color:0x00ff00}));
-            glow.position.set(0.31, 0.1, 0); glow.name = "glowBar"; g.add(glow);
-            
-            g.position.set(2, -1.8, -3); g.scale.set(1.5,1.5,1.5);
-            return g;
-        }
 
         function init() {
             scene = new THREE.Scene();
@@ -411,11 +419,12 @@
             pl.position.set(0,0,0); pl.target.position.set(0,0,-1);
             camera.add(pl); camera.add(pl.target);
 
-            // 武器
+            // 武器材質與生成
             normalGunMat = new THREE.MeshStandardMaterial({map: generateTexture('gun_normal'), roughness: 0.5});
             superGunMat = new THREE.MeshStandardMaterial({map: generateTexture('gun_super'), roughness: 0.2, metalness: 1, emissive: 0xaa4400, emissiveIntensity: 0.5});
+            
             playerWeaponGroup = createComplexGunModel(normalGunMat);
-            camera.add(playerWeaponGroup);
+            camera.add(playerWeaponGroup); // 將槍添加到相機
 
             controls = new PointerLockControls(camera, document.body);
             
@@ -476,11 +485,10 @@
             }
         }
 
-        // 檢查 Boss 生成
         function checkBossSpawn() {
             if (player.score >= bossState.nextSpawnScore && !bossState.active) {
                 spawnBoss();
-                bossState.nextSpawnScore += 400; // 下一次觸發點
+                bossState.nextSpawnScore += 400; 
             }
         }
 
@@ -490,8 +498,7 @@
             crosshair.classList.add('reloading');
             SoundGen.reload();
             
-            // 動畫
-            const startY = -1.8;
+            const startY = -0.4; // 修正動畫起始點
             let p = 0;
             const interval = setInterval(() => {
                 p += 0.05;
@@ -516,7 +523,6 @@
             const floor = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000).rotateX(-Math.PI/2), floorMaterial);
             floor.receiveShadow = true; scene.add(floor);
             
-            // 隨機墓碑與樹
             const tGeo = new THREE.BoxGeometry(4, 7, 1);
             const trGeo = new THREE.ConeGeometry(3, 20, 5);
             for(let i=0; i<250; i++) {
@@ -534,13 +540,10 @@
         // --- 敵人生成 ---
         
         function spawnGhost() {
-            if (bossState.active) return; // Boss 存在時不生小怪
-            
             const max = 10 + Math.floor(player.score/200);
             if (enemyUnits.length > max) return;
 
             const g = new THREE.Group();
-            // 幽靈外觀
             const body = new THREE.Mesh(new THREE.ConeGeometry(3, 8, 8, 1, true), 
                 new THREE.MeshStandardMaterial({color: 0x88ffff, emissive: 0x004444, transparent: true, opacity: 0.7, side: THREE.DoubleSide}));
             body.position.y = 4; g.add(body);
@@ -564,11 +567,10 @@
             setTimeout(() => bossWarning.style.display = 'none', 4000);
 
             const level = bossState.count;
-            const multiplier = 1 + (level * 0.5); // 強度倍率
+            const multiplier = 1 + (level * 0.5); 
 
             const g = new THREE.Group();
             
-            // Boss 外觀：紅色惡魔
             const mat = new THREE.MeshStandardMaterial({
                 color: 0x660000, roughness: 0.3, metalness: 0.8, 
                 emissive: 0x550000, emissiveIntensity: 0.8
@@ -577,24 +579,20 @@
             const body = new THREE.Mesh(new THREE.CylinderGeometry(5*multiplier, 3*multiplier, 15*multiplier, 6), mat);
             body.position.y = 7.5*multiplier; g.add(body);
             
-            // 頭部
             const head = new THREE.Mesh(new THREE.DodecahedronGeometry(4*multiplier), mat);
             head.position.y = 16*multiplier; g.add(head);
             
-            // 眼睛
             const eyeGeo = new THREE.BoxGeometry(1*multiplier, 0.5*multiplier, 1*multiplier);
             const eyeMat = new THREE.MeshBasicMaterial({color: 0xff0000});
             const le = new THREE.Mesh(eyeGeo, eyeMat); le.position.set(-2*multiplier, 16*multiplier, 3*multiplier);
             const re = new THREE.Mesh(eyeGeo, eyeMat); re.position.set(2*multiplier, 16*multiplier, 3*multiplier);
             g.add(le); g.add(re);
 
-            // 光環 (Halo)
             const halo = new THREE.Mesh(new THREE.TorusGeometry(6*multiplier, 0.5, 16, 50), new THREE.MeshBasicMaterial({color:0xff0000}));
             halo.rotation.x = Math.PI/2; halo.position.y = 22*multiplier;
-            halo.name = "halo"; // 用於動畫旋轉
+            halo.name = "halo"; 
             g.add(halo);
 
-            // 紅色點光源 (自帶氣場)
             const light = new THREE.PointLight(0xff0000, 5, 40*multiplier);
             light.position.y = 10;
             g.add(light);
@@ -603,10 +601,9 @@
             const speed = (18 + (level * 2)); 
             
             const unit = spawnUnit(g, hp, speed, 'boss');
-            unit.maxHp = hp; // 記錄最大血量用於 UI
+            unit.maxHp = hp;
             bossState.unit = unit;
 
-            // 更新 Boss UI 文字
             bossLvlUi.innerText = level;
             bossTracker.style.display = 'block';
         }
@@ -671,14 +668,12 @@
             player.ammo--; updateUI();
             
             // 後座力
-            playerWeaponGroup.position.z += 0.4;
-            setTimeout(()=> playerWeaponGroup.position.z -= 0.4, 80);
+            playerWeaponGroup.position.z += 0.2; // 修正後座力幅度
+            setTimeout(()=> playerWeaponGroup.position.z -= 0.2, 80);
 
-            // 槍口閃光
             const flash = new THREE.PointLight(player.isSuperWeapon?0xffaa00:0x00ffff, 5, 20);
-            flash.position.set(2, -1, -5); camera.add(flash); setTimeout(()=>camera.remove(flash), 50);
+            flash.position.set(0.4, -0.4, -2); camera.add(flash); setTimeout(()=>camera.remove(flash), 50);
 
-            // 射線檢測
             raycaster.setFromCamera(new THREE.Vector2(), camera);
             const targets = [];
             enemyUnits.forEach(u => u.group.children.forEach(c => targets.push(c)));
@@ -696,7 +691,6 @@
             const unit = enemyUnits[idx];
             unit.hp -= player.damage;
             
-            // 受傷閃爍
             unit.group.children.forEach(m => {
                 if(m.material && m.material.emissive) {
                     const old = m.material.emissive.getHex();
@@ -711,8 +705,8 @@
                     bossState.unit = null;
                     bossTracker.style.display = 'none';
                     player.score += 1000;
-                    spawnDrop(unit.group.position); // Boss 必掉
-                    spawnDrop(unit.group.position); // 雙倍掉落
+                    spawnDrop(unit.group.position); 
+                    spawnDrop(unit.group.position); 
                 } else {
                     player.score += 100;
                     if(Math.random()<0.3) spawnDrop(unit.group.position);
@@ -720,7 +714,7 @@
                 
                 scene.remove(unit.group);
                 enemyUnits.splice(idx, 1);
-                checkBossSpawn(); // 分數增加檢查是否觸發 Boss
+                checkBossSpawn(); 
                 updateUI();
             }
         }
@@ -748,8 +742,6 @@
             }
         }
 
-        // --- 遊戲循環與更新 ---
-
         function updateBossUI() {
             if (!bossState.active || !bossState.unit) {
                 bossTracker.style.display = 'none';
@@ -758,41 +750,33 @@
 
             const boss = bossState.unit;
             
-            // 1. 更新血條
             const hpPercent = Math.max(0, (boss.hp / boss.maxHp) * 100);
             bossHpFill.style.width = hpPercent + '%';
 
-            // 2. 計算 Boss 在螢幕上的位置
-            // 獲取 Boss 頭頂位置
             const headPos = boss.group.position.clone();
-            headPos.y += (boss.type === 'boss' ? 25 : 10); // 調整高度偏移
+            headPos.y += (boss.type === 'boss' ? 25 : 10); 
             
-            // 投影到 2D
             headPos.project(camera);
 
-            // 檢查是否在攝影機前方 (z < 1)
             if (headPos.z < 1) {
                 const x = (headPos.x * .5 + .5) * window.innerWidth;
                 const y = (-(headPos.y * .5) + .5) * window.innerHeight;
 
                 bossTracker.style.display = 'block';
-                // 將 UI 中心對準目標點，稍微往上移
                 bossTracker.style.transform = `translate(${x - 110}px, ${y - 120}px)`;
                 
-                // 計算距離
                 const dist = Math.floor(boss.group.position.distanceTo(camera.position));
                 bossDistEl.innerText = `DIST: ${dist}m`;
                 
-                // 血量低時變色
                 if (hpPercent < 30) {
                     bossHpFill.style.backgroundColor = '#ffcc00'; 
-                    if(Math.random() > 0.8) bossTracker.style.opacity = 0.5; else bossTracker.style.opacity = 1; // 故障效果
+                    if(Math.random() > 0.8) bossTracker.style.opacity = 0.5; else bossTracker.style.opacity = 1; 
                 } else {
                     bossHpFill.style.backgroundColor = '#ff0000';
                     bossTracker.style.opacity = 1;
                 }
             } else {
-                bossTracker.style.display = 'none'; // 在背後時隱藏
+                bossTracker.style.display = 'none';
             }
         }
 
@@ -802,7 +786,6 @@
             const time = performance.now();
 
             if (controls.isLocked && player.hp > 0) {
-                // 移動邏輯
                 velocity.x -= velocity.x * 10.0 * delta;
                 velocity.z -= velocity.z * 10.0 * delta;
                 velocity.y -= 9.8 * 100.0 * delta;
@@ -825,7 +808,6 @@
                     }
                 }
 
-                // 敵人更新
                 const pPos = controls.getObject().position;
                 enemyUnits.forEach(u => {
                     u.group.lookAt(pPos.x, u.group.position.y, pPos.z);
@@ -835,23 +817,21 @@
                         const dir = new THREE.Vector3().subVectors(pPos, u.group.position).normalize();
                         u.group.position.add(dir.multiplyScalar(u.speed * delta));
                     } else {
-                        player.hp -= delta * (u.type==='boss'?50:20); // Boss 傷害高
+                        player.hp -= delta * (u.type==='boss'?50:20);
                         updateUI();
                         if(player.hp <= 0) {
                             controls.unlock();
                             blocker.style.display = 'flex';
                             SoundGen.stopMusic();
-                            document.getElementById('instructions').innerHTML = `<h1 style="color:red">MISSION FAILED</h1><p>Score: ${player.score}</p>`;
+                            document.getElementById('instructions').innerText = "MISSION FAILED";
                         }
                     }
-                    // Boss 光環旋轉
                     if(u.type === 'boss') {
                         const halo = u.group.getObjectByName('halo');
                         if(halo) { halo.rotation.z += delta * 2; halo.rotation.x = Math.PI/2 + Math.sin(time*0.002)*0.5; }
                     }
                 });
 
-                // 掉落物更新
                 let closest = 10, target = null;
                 dropItems.forEach(i => {
                     i.rotation.y += delta * i.userData.rotateSpeed;
@@ -868,11 +848,19 @@
                     interactiveMsg.style.display = 'none';
                 }
 
-                // Boss 檢查與 UI 更新
-                if (!bossState.active) checkBossSpawn();
-                else if (Math.random() < 0.05) {
-                   // 偶爾生成小怪干擾
-                   if (enemyUnits.length < 5) spawnGhost();
+                // --- 修正後的生成邏輯 ---
+                if (!bossState.active) {
+                    checkBossSpawn(); // 檢查分數是否到了 BOSS 點
+                    
+                    // 只有 Boss 不在的時候才生成普通怪
+                    if (Math.random() < 0.02 && enemyUnits.length < 10) {
+                        spawnGhost();
+                    }
+                } else {
+                    // Boss 在場時，偶爾生成干擾小怪
+                    if (Math.random() < 0.005 && enemyUnits.length < 5) {
+                        spawnGhost();
+                    }
                 }
 
                 updateBossUI();
