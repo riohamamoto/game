@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Graveyard Shooter - Apex Style</title>
+    <title>Graveyard Shooter - High Loot & Audio Fix</title>
     <style>
         /* --- 基礎設定 --- */
         body { margin: 0; overflow: hidden; background-color: #000; user-select: none; font-family: 'Segoe UI', 'Courier New', monospace; }
@@ -152,7 +152,7 @@
             <br>
             <div style="border: 1px solid #555; padding: 20px; background: rgba(255,255,255,0.1);">
                 <p>WASD 移動 | 空白鍵 跳躍 | R 換彈 | <b>E 拾取</b></p>
-                <p style="color: #ff5555;">尋找高能武器箱以切換 R-301</p>
+                <p style="color: #ff5555;">更新：大幅提升武器箱掉落率</p>
             </div>
         </div>
     </div>
@@ -168,8 +168,8 @@
         
         const player = {
             hp: 100, maxHp: 100,
-            ammo: 6, maxMag: 6, reserveAmmo: 24, // Wingman 預設較少
-            damage: 45, isSuperWeapon: false, // Wingman 單發痛
+            ammo: 6, maxMag: 6, reserveAmmo: 24, 
+            damage: 45, isSuperWeapon: false, 
             canShoot: true, isReloading: false,
             score: 0,
             difficultyLevel: 1 
@@ -253,16 +253,20 @@
             startContinuousMusic: function() {
                 if (!this.ctx) return;
                 this.stopMusic();
+                // 使用更穩定的低頻 Drone
                 const bassOsc = this.ctx.createOscillator(); bassOsc.type = 'sawtooth'; bassOsc.frequency.value = 55;
                 const bassGain = this.ctx.createGain(); bassGain.gain.value = 0.15;
-                const bassFilter = this.ctx.createBiquadFilter(); bassFilter.type = 'lowpass'; bassFilter.frequency.value = 150;
+                const bassFilter = this.ctx.createBiquadFilter(); bassFilter.type = 'lowpass'; bassFilter.frequency.value = 120;
                 bassOsc.connect(bassFilter); bassFilter.connect(bassGain); bassGain.connect(this.masterGain);
                 bassOsc.start(); this.musicNodes.push(bassOsc);
+                
+                // 氛圍音
                 this.creepyInterval = setInterval(() => {
-                    if(Math.random() > 0.65) return;
-                    const freq = 300 + Math.random() * 800;
-                    this.playTone(freq, 'sine', 3, 0.05, freq*0.5);
-                }, 3500);
+                    if(Math.random() > 0.6) return;
+                    if(this.ctx.state === 'suspended') this.ctx.resume(); // 強制喚醒
+                    const freq = 200 + Math.random() * 600;
+                    this.playTone(freq, 'sine', 4, 0.03, freq*0.5);
+                }, 3000);
             },
             stopMusic: function() {
                 this.musicNodes.forEach(n => { try{n.stop();n.disconnect();}catch(e){} });
@@ -271,13 +275,11 @@
             },
             shoot: function(isSuper) { 
                 if(isSuper) {
-                    // R-301 Sound (Fast, sharp)
                     this.playTone(600, 'sawtooth', 0.1, 0.15, 300); 
                     this.playNoise(0.05, 0.2); 
                 } else {
-                    // Wingman Sound (Heavy, loud)
-                    this.playTone(200, 'square', 0.3, 0.4, 50); 
-                    this.playNoise(0.2, 0.5); 
+                    this.playTone(150, 'square', 0.2, 0.3, 50); 
+                    this.playNoise(0.1, 0.4); 
                 }
             },
             empty: function() { this.playTone(800, 'square', 0.05, 0.1); },
@@ -305,102 +307,46 @@
             const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
         }
 
-        // --- 槍械模型生成器 (關鍵修改) ---
+        // --- 槍械模型生成器 ---
 
-        // 1. Wingman (小幫手) 風格模型
         function createWingmanModel() {
             const g = new THREE.Group();
-            
-            // 槍管 (上部銀色)
             const topBarrel = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.2, 0.8), matSilver);
-            topBarrel.position.set(0, 0.2, -0.6);
-            g.add(topBarrel);
-
-            // 槍管 (下部白色)
+            topBarrel.position.set(0, 0.2, -0.6); g.add(topBarrel);
             const botBarrel = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.15, 0.7), matWhite);
-            botBarrel.position.set(0, 0.05, -0.6);
-            g.add(botBarrel);
-
-            // 轉輪區域
+            botBarrel.position.set(0, 0.05, -0.6); g.add(botBarrel);
             const cylinder = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.3, 8), matDark);
-            cylinder.rotation.z = Math.PI/2;
-            cylinder.position.set(0, 0.2, -0.1);
-            g.add(cylinder);
-
-            // 握把 (木質/深色)
+            cylinder.rotation.z = Math.PI/2; cylinder.position.set(0, 0.2, -0.1); g.add(cylinder);
             const grip = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.15), matWood);
-            grip.rotation.x = -0.3; // 傾斜
-            grip.position.set(0, -0.1, 0.2);
-            g.add(grip);
-
-            // 照門/細節
+            grip.rotation.x = -0.3; grip.position.set(0, -0.1, 0.2); g.add(grip);
             const sight = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 0.1), matDark);
-            sight.position.set(0, 0.32, 0.1);
-            g.add(sight);
-
-            // 能量條
+            sight.position.set(0, 0.32, 0.1); g.add(sight);
             const glow = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, 0.4), matGlow);
-            glow.position.set(0.08, 0.2, -0.6); // 側邊發光
-            glow.name = 'glowBar';
-            g.add(glow);
-
-            // 位置調整 (手持位置)
+            glow.position.set(0.08, 0.2, -0.6); glow.name = 'glowBar'; g.add(glow);
             g.position.set(0.5, -0.5, -0.8);
             return g;
         }
 
-        // 2. R-301 卡賓槍 風格模型
         function createR301Model() {
             const g = new THREE.Group();
-
-            // 主槍身 (長, 白色)
             const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.15, 1.2), matWhite);
-            body.position.set(0, 0.1, -0.6);
-            g.add(body);
-
-            // 藍色裝飾條 (斜切風格)
+            body.position.set(0, 0.1, -0.6); g.add(body);
             const accent = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.05, 0.6), matBlue);
-            accent.position.set(0, 0.1, -0.4);
-            g.add(accent);
-
-            // 槍管 (黑色)
+            accent.position.set(0, 0.1, -0.4); g.add(accent);
             const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.8), matDark);
-            barrel.rotation.x = Math.PI/2;
-            barrel.position.set(0, 0.1, -1.5);
-            g.add(barrel);
-
-            // 彈匣 (斜向, 黑色)
+            barrel.rotation.x = Math.PI/2; barrel.position.set(0, 0.1, -1.5); g.add(barrel);
             const mag = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.4, 0.12), matDark);
-            mag.rotation.x = 0.3;
-            mag.position.set(0, -0.2, -0.5);
-            g.add(mag);
-
-            // 握把 (人體工學, 黑色)
+            mag.rotation.x = 0.3; mag.position.set(0, -0.2, -0.5); g.add(mag);
             const grip = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.35, 0.12), matDark);
-            grip.rotation.x = -0.2;
-            grip.position.set(0, -0.2, -0.1);
-            g.add(grip);
-
-            // 槍托 (後部)
+            grip.rotation.x = -0.2; grip.position.set(0, -0.2, -0.1); g.add(grip);
             const stock = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.5), matDark);
-            stock.position.set(0, 0.05, 0.4);
-            g.add(stock);
-
-            // 瞄準鏡 (全息)
+            stock.position.set(0, 0.05, 0.4); g.add(stock);
             const scopeBase = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.2), matDark);
-            scopeBase.position.set(0, 0.2, -0.3);
-            g.add(scopeBase);
+            scopeBase.position.set(0, 0.2, -0.3); g.add(scopeBase);
             const scopeGlass = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.1), matBlue);
-            scopeGlass.position.set(0, 0.25, -0.2);
-            g.add(scopeGlass);
-
-            // 發光能量顯示
+            scopeGlass.position.set(0, 0.25, -0.2); g.add(scopeGlass);
             const info = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.08, 0.2), matGlow);
-            info.position.set(0.07, 0.1, -0.8);
-            info.name = 'glowBar';
-            g.add(info);
-
-            // 位置調整
+            info.position.set(0.07, 0.1, -0.8); info.name = 'glowBar'; g.add(info);
             g.position.set(0.5, -0.5, -0.8);
             return g;
         }
@@ -498,13 +444,10 @@
             let p = 0;
             const interval = setInterval(() => {
                 p += 0.05;
-                // Wingman 甩槍動作 (上揚旋轉) vs R-301 (拉槍機)
                 if(player.isSuperWeapon) {
-                     // R-301 Reload anim
                     if(p < 0.5) { playerWeaponGroup.position.z += 0.05; playerWeaponGroup.rotation.x += 0.05; }
                     else { playerWeaponGroup.position.z -= 0.05; playerWeaponGroup.rotation.x -= 0.05; }
                 } else {
-                    // Wingman Reload anim
                     if(p < 0.5) { playerWeaponGroup.rotation.z += 0.2; playerWeaponGroup.rotation.x -= 0.1; }
                     else { playerWeaponGroup.rotation.z -= 0.2; playerWeaponGroup.rotation.x += 0.1; }
                 }
@@ -595,8 +538,9 @@
         }
 
         function spawnDrop(pos) {
-            // 提高掉落率至 40%
-            const isWeapon = Math.random() < 0.4; 
+            // --- 修正：大幅提高掉落率 ---
+            // 現在有 50% 機率是武器箱
+            const isWeapon = Math.random() < 0.5; 
             const mesh = new THREE.Mesh(
                 isWeapon ? new THREE.BoxGeometry(1,1,3) : new THREE.BoxGeometry(2,2,2),
                 isWeapon ? weaponDropMat : ammoMat
@@ -607,6 +551,13 @@
                 rotateSpeed: isWeapon?3:1 
             };
             mesh.position.copy(pos); mesh.position.y = 3;
+            
+            // 增加光柱效果，確保玩家看得到
+            const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 50, 8), 
+                new THREE.MeshBasicMaterial({color: isWeapon?0xffff00:0x00ff00, transparent:true, opacity:0.3}));
+            beam.position.y = 25;
+            mesh.add(beam);
+            
             scene.add(mesh); dropItems.push(mesh);
         }
 
@@ -632,13 +583,12 @@
         function onMouseDown() {
             if(!controls.isLocked || player.hp<=0 || player.isReloading) return;
             if(player.ammo <= 0) { SoundGen.empty(); reloadWeapon(); return; }
-            if(performance.now() - lastShootTime < (player.isSuperWeapon ? 100 : 400)) return; // R-301 射速快
+            if(performance.now() - lastShootTime < (player.isSuperWeapon ? 100 : 400)) return; 
             lastShootTime = performance.now();
 
             SoundGen.shoot(player.isSuperWeapon);
             player.ammo--; updateUI();
             
-            // 後座力 (Wingman 大, R-301 小)
             const recoilZ = player.isSuperWeapon ? 0.1 : 0.3;
             playerWeaponGroup.position.z += recoilZ; 
             playerWeaponGroup.rotation.x += (player.isSuperWeapon ? 0.05 : 0.15);
@@ -679,7 +629,8 @@
                     spawnDrop(unit.group.position); spawnDrop(unit.group.position); 
                 } else {
                     player.score += 100;
-                    if(Math.random()<0.3) spawnDrop(unit.group.position); // 30% 掉落
+                    // --- 修正：提高掉落機率到 50% ---
+                    if(Math.random() < 0.5) spawnDrop(unit.group.position); 
                 }
                 scene.remove(unit.group); enemyUnits.splice(idx, 1);
                 checkBossSpawn(); updateUI();
@@ -695,16 +646,13 @@
                     if(item.userData.type === 'ammo') {
                         player.reserveAmmo += player.isSuperWeapon ? 60 : 12;
                     } else {
-                        // --- 切換槍枝模型邏輯 ---
                         player.isSuperWeapon = true;
-                        player.damage = 25; // R-301 單發傷害低但射速快
+                        player.damage = 25; 
                         player.maxMag = 28;
                         player.ammo = 28;
                         player.reserveAmmo = 120;
                         weaponTypeEl.innerText = "R-301 CARBINE";
                         weaponTypeEl.style.color = "#0088ff";
-                        
-                        // 移除舊槍，換新槍
                         camera.remove(playerWeaponGroup);
                         playerWeaponGroup = createR301Model();
                         camera.add(playerWeaponGroup);
@@ -739,6 +687,11 @@
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
             const time = performance.now();
+            
+            // --- 音效修復：強制喚醒 ---
+            if(SoundGen.ctx && SoundGen.ctx.state === 'suspended') {
+                SoundGen.ctx.resume();
+            }
 
             if (controls.isLocked && player.hp > 0) {
                 velocity.x -= velocity.x * 10.0 * delta;
