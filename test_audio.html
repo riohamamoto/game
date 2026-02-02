@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音效系統測試</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #111;
+            color: #fff;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #00ccff;
+            text-align: center;
+        }
+        .test-section {
+            background: #222;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            border: 1px solid #333;
+        }
+        .button-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        button {
+            padding: 12px;
+            background: #333;
+            color: #fff;
+            border: 1px solid #00ccff;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #00ccff;
+            color: #000;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+        .success { color: #0f0; }
+        .error { color: #f00; }
+        .info { color: #0cf; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>音效系統測試</h1>
+        
+        <div class="test-section">
+            <h2>1. 音效系統初始化</h2>
+            <button id="initBtn">初始化音效系統</button>
+            <button id="toggleBtn">開關音效</button>
+            <div id="initStatus" class="status"></div>
+        </div>
+        
+        <div class="test-section">
+            <h2>2. 俄羅斯方塊音效測試</h2>
+            <div class="button-grid">
+                <button data-sound="tetris-move">移動</button>
+                <button data-sound="tetris-rotate">旋轉</button>
+                <button data-sound="tetris-drop">下落</button>
+                <button data-sound="tetris-clear">消除1行</button>
+                <button data-sound="tetris-clear4">消除4行</button>
+                <button data-sound="tetris-levelup">升級</button>
+                <button data-sound="tetris-gameover">遊戲結束</button>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>3. 通用音效測試</h2>
+            <div class="button-grid">
+                <button data-sound="click">點擊</button>
+                <button data-sound="hover">懸停</button>
+                <button data-sound="success">成功</button>
+                <button data-sound="error">錯誤</button>
+                <button data-sound="countdown">倒數</button>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>4. 系統狀態</h2>
+            <div id="systemStatus" class="status">
+                等待初始化...
+            </div>
+        </div>
+    </div>
+
+    <script src="js/common/audio-system.js"></script>
+    <script>
+        let audioSystem = null;
+        
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('systemStatus');
+            statusDiv.innerHTML = `<span class="${type}">${new Date().toLocaleTimeString()}: ${message}</span>`;
+        }
+        
+        function updateInitStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('initStatus');
+            statusDiv.innerHTML = `<span class="${type}">${message}</span>`;
+        }
+        
+        // 初始化按鈕
+        document.getElementById('initBtn').addEventListener('click', () => {
+            try {
+                if (!window.audioSystem) {
+                    updateInitStatus('錯誤: audioSystem 未定義', 'error');
+                    return;
+                }
+                
+                audioSystem = window.audioSystem;
+                audioSystem.loadSettings();
+                
+                updateInitStatus('音效系統初始化成功!', 'success');
+                updateStatus('音效系統已初始化，狀態: ' + (audioSystem.enabled ? '啟用' : '禁用'));
+                
+            } catch (error) {
+                updateInitStatus('初始化失敗: ' + error.message, 'error');
+                updateStatus('初始化錯誤: ' + error.message, 'error');
+            }
+        });
+        
+        // 開關音效按鈕
+        document.getElementById('toggleBtn').addEventListener('click', () => {
+            if (audioSystem) {
+                const enabled = audioSystem.toggleEnabled();
+                updateStatus('音效 ' + (enabled ? '啟用' : '禁用'));
+            } else {
+                updateStatus('請先初始化音效系統', 'error');
+            }
+        });
+        
+        // 音效測試按鈕
+        document.querySelectorAll('button[data-sound]').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const soundName = e.target.getAttribute('data-sound');
+                
+                if (!audioSystem) {
+                    updateStatus('請先初始化音效系統', 'error');
+                    return;
+                }
+                
+                if (!audioSystem.enabled) {
+                    updateStatus('音效已禁用，請先啟用', 'error');
+                    return;
+                }
+                
+                try {
+                    const result = audioSystem.playSound(soundName);
+                    if (result) {
+                        updateStatus(`播放音效: ${soundName}`, 'success');
+                        e.target.style.background = '#0a0';
+                        setTimeout(() => {
+                            e.target.style.background = '';
+                        }, 200);
+                    } else {
+                        updateStatus(`音效未找到: ${soundName}`, 'error');
+                        e.target.style.background = '#a00';
+                        setTimeout(() => {
+                            e.target.style.background = '';
+                        }, 200);
+                    }
+                } catch (error) {
+                    updateStatus(`播放錯誤: ${error.message}`, 'error');
+                }
+            });
+        });
+        
+        // 自動初始化
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (window.audioSystem) {
+                    audioSystem = window.audioSystem;
+                    audioSystem.loadSettings();
+                    updateStatus('自動初始化完成，音效系統狀態: ' + (audioSystem.enabled ? '啟用' : '禁用'), 'success');
+                    updateInitStatus('自動初始化完成', 'success');
+                } else {
+                    updateStatus('音效系統未載入，請手動初始化', 'error');
+                }
+            }, 500);
+        });
+        
+        // 測試俄羅斯方塊特殊音效
+        const testTetrisClear = document.createElement('button');
+        testTetrisClear.textContent = '測試消除行數音效';
+        testTetrisClear.style.marginTop = '10px';
+        testTetrisClear.addEventListener('click', () => {
+            if (audioSystem && audioSystem.playTetrisClearLines) {
+                audioSystem.playTetrisClearLines(1);
+                setTimeout(() => audioSystem.playTetrisClearLines(2), 300);
+                setTimeout(() => audioSystem.playTetrisClearLines(3), 600);
+                setTimeout(() => audioSystem.playTetrisClearLines(4), 900);
+                updateStatus('播放消除行數音效序列', 'success');
+            }
+        });
+        
+        document.querySelector('.test-section:nth-child(2)').appendChild(testTetrisClear);
+    </script>
+</body>
+</html>

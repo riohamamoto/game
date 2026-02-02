@@ -324,6 +324,9 @@
         HTML5 俄羅斯方塊遊戲 &copy; 2023 | 升級版
     </div>
 
+    <!-- 引入共用音效系統 -->
+    <script src="js/common/audio-system.js"></script>
+    
     <script>
         // 遊戲常量
         const COLS = 10;
@@ -383,6 +386,11 @@
         let lastTime = 0;
         let currentDifficulty = 'medium'; // 當前難度
 
+        // 音效控制變量
+        let audioEnabled = true;
+        let lastMoveSoundTime = 0;
+        const MOVE_SOUND_COOLDOWN = 100; // 移動音效冷卻時間(毫秒)
+
         // 當前方塊和下一個方塊
         let player = {
             pos: {x: 0, y: 0},
@@ -403,6 +411,30 @@
         const difficultySelect = document.getElementById('difficultySelect');
         const cheerText = document.getElementById('cheerText');
 
+        // 音效輔助函數
+        function playSound(soundName, volume = 1.0, pitch = 1.0) {
+            if (!audioEnabled || !window.audioSystem) return;
+            return window.audioSystem.playSound(soundName, volume, pitch);
+        }
+
+        function toggleAudio() {
+            audioEnabled = !audioEnabled;
+            if (window.audioSystem) {
+                window.audioSystem.toggleEnabled();
+            }
+            updateAudioButton();
+            return audioEnabled;
+        }
+
+        function updateAudioButton() {
+            // 可以在UI中添加音效開關按鈕
+            const audioBtn = document.getElementById('audioToggleBtn');
+            if (audioBtn) {
+                audioBtn.textContent = audioEnabled ? '🔊 音效開' : '🔇 音效關';
+                audioBtn.title = audioEnabled ? '點擊關閉音效' : '點擊開啟音效';
+            }
+        }
+
         // 初始化遊戲
         function init() {
             canvas = document.getElementById('gameCanvas');
@@ -415,6 +447,12 @@
             
             // 讀取最高分
             loadHighScore();
+
+            // 初始化音效系統
+            if (window.audioSystem) {
+                window.audioSystem.loadSettings();
+                audioEnabled = window.audioSystem.enabled;
+            }
 
             createBoard();
             resetPlayer();
@@ -436,8 +474,43 @@
                 // 但這裡我們允許實時調整基礎速度
             });
 
+            // 添加音效控制按鈕
+            addAudioControls();
+
             requestAnimationFrame(gameLoop);
             updateDisplay();
+            updateAudioButton();
+        }
+
+        // 添加音效控制UI
+        function addAudioControls() {
+            const settingsPanel = document.querySelector('.panel:nth-child(3)');
+            if (!settingsPanel) return;
+
+            const audioControlDiv = document.createElement('div');
+            audioControlDiv.className = 'audio-control';
+            audioControlDiv.style.marginTop = '15px';
+            audioControlDiv.style.paddingTop = '15px';
+            audioControlDiv.style.borderTop = '1px solid #333';
+            
+            audioControlDiv.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: #aaa; font-size: 0.9rem;">音效設定：</span>
+                    <button id="audioToggleBtn" style="padding: 5px 10px; background: #333; color: #fff; border: 1px solid #00ccff; border-radius: 4px; cursor: pointer;">
+                        ${audioEnabled ? '🔊 音效開' : '🔇 音效關'}
+                    </button>
+                </div>
+                <div style="margin-top: 8px; font-size: 0.8rem; color: #666;">
+                    按M鍵快速開關音效
+                </div>
+            `;
+            
+            settingsPanel.appendChild(audioControlDiv);
+            
+            // 綁定按鈕事件
+            document.getElementById('audioToggleBtn').addEventListener('click', () => {
+                toggleAudio();
+            });
         }
 
         // 讀取最高分
@@ -487,6 +560,8 @@
             
             if (collide(board, player)) {
                 gameOver = true;
+                // 播放遊戲結束音效
+                playSound('tetris-gameover', 1.0);
                 updateHighScore(); // 遊戲結束更新最高分
             }
         }
@@ -622,6 +697,8 @@
                     return;
                 }
             }
+            // 播放旋轉音效
+            playSound('tetris-rotate', 0.8);
         }
 
         function playerMove(dir) {
@@ -629,6 +706,13 @@
             player.pos.x += dir;
             if (collide(board, player)) {
                 player.pos.x -= dir;
+            } else {
+                // 播放移動音效（有冷卻時間避免太頻繁）
+                const now = Date.now();
+                if (now - lastMoveSoundTime > MOVE_SOUND_COOLDOWN) {
+                    playSound('tetris-move', 0.7);
+                    lastMoveSoundTime = now;
+                }
             }
         }
 
@@ -638,10 +722,15 @@
             if (collide(board, player)) {
                 player.pos.y--;
                 merge(board, player);
+                // 播放方塊落地音效
+                playSound('tetris-drop', 0.9);
                 resetPlayer();
                 sweep();
                 updateDisplay();
                 updateHighScore(); // 實時更新最高分
+            } else {
+                // 播放下落音效（較輕）
+                playSound('tetris-move', 0.4, 0.8);
             }
             dropCounter = 0;
         }
@@ -653,6 +742,8 @@
             }
             player.pos.y--;
             merge(board, player);
+            // 播放瞬落音效（較重的落地聲）
+            playSound('tetris-drop', 1.0, 0.7);
             resetPlayer();
             sweep();
             updateDisplay();
@@ -673,6 +764,18 @@
             }
             
             if (rowCount > 0) {
+                // 播放消除行數音效
+                if (window.audioSystem && window.audioSystem.playTetrisClearLines) {
+                    window.audioSystem.playTetrisClearLines(rowCount);
+                } else {
+                    // 備用音效
+                    if (rowCount === 4) {
+                        playSound('tetris-clear4', 1.0);
+                    } else {
+                        playSound('tetris-clear', 0.8 + (rowCount * 0.1));
+                    }
+                }
+                
                 const linePoints = [0, 40, 100, 300, 1200];
                 score += linePoints[rowCount] * level;
                 lines += rowCount;
@@ -690,6 +793,9 @@
                     // 觸發激勵評語
                     const randomMsg = CHEER_MESSAGES[Math.min(level - 1, CHEER_MESSAGES.length - 1)] || "Unstoppable!";
                     showCheerMessage(randomMsg);
+                    
+                    // 播放升級音效
+                    playSound('tetris-levelup', 1.0);
                 }
                 
                 updateDisplay();
@@ -710,6 +816,13 @@
                 event.preventDefault();
             }
 
+            // M鍵開關音效
+            if (event.keyCode === 77) { // M key
+                toggleAudio();
+                event.preventDefault();
+                return;
+            }
+
             if (gameOver) return;
             switch (event.keyCode) {
                 case 37: playerMove(-1); break;
@@ -722,7 +835,12 @@
         }
 
         function startGame() {
-            if (gameOver) resetGame();
+            if (gameOver) {
+                resetGame();
+            } else {
+                // 播放開始遊戲音效
+                playSound('click', 0.8);
+            }
             isPaused = false;
             pauseBtn.textContent = "暫停遊戲";
             difficultySelect.disabled = true; // 遊戲開始後鎖定難度
@@ -732,9 +850,14 @@
             if (gameOver) return;
             isPaused = !isPaused;
             pauseBtn.textContent = isPaused ? "繼續遊戲" : "暫停遊戲";
+            // 播放暫停/繼續音效
+            playSound(isPaused ? 'click' : 'success', 0.7);
         }
 
         function resetGame() {
+            // 播放重置音效
+            playSound('click', 0.8);
+            
             createBoard();
             score = 0;
             lines = 0;
