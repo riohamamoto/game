@@ -101,12 +101,35 @@
             position: absolute; top:0; left:0; width: 100%; height: 100%;
             background-color: rgba(0,0,0,0.85); display: flex; flex-direction: column; justify-content: center; align-items: center; color: #ffffff; z-index: 999;
         }
+        
+        /* --- 難度設定 --- */
+        #difficulty-settings {
+            position: absolute; top: 20px; left: 20px; z-index: 1000;
+            background: rgba(0, 20, 40, 0.8); border: 1px solid cyan; padding: 15px;
+            border-radius: 5px; color: white; font-family: monospace;
+            display: none; pointer-events: auto;
+        }
+        #difficulty-settings h3 { margin-top: 0; color: cyan; }
+        .difficulty-option { margin: 10px 0; cursor: pointer; padding: 5px 10px; border-radius: 3px; }
+        .difficulty-option:hover { background: rgba(0, 255, 255, 0.2); }
+        .difficulty-option.selected { background: rgba(0, 255, 255, 0.4); border-left: 3px solid cyan; }
+        
+        /* --- 音效控制 --- */
+        #audio-controls {
+            position: absolute; top: 20px; right: 20px; z-index: 1000;
+            background: rgba(0, 20, 40, 0.8); border: 1px solid #00ff00; padding: 10px;
+            border-radius: 5px; color: white; font-family: monospace;
+            display: none; pointer-events: auto;
+        }
+        .audio-slider { width: 150px; margin: 5px 0; }
+        .audio-label { font-size: 12px; color: #aaa; }
     </style>
     
     <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
     <script type="importmap">
       { "imports": { "three": "https://unpkg.com/three@0.154.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.154.0/examples/jsm/" } }
     </script>
+    <script src="js/common/audio-system.js"></script>
 </head>
 <body>
     
@@ -145,6 +168,27 @@
         </div>
     </div>
     
+    <div id="difficulty-settings">
+        <h3>難度設定</h3>
+        <div class="difficulty-option selected" data-level="1">簡單 (新手)</div>
+        <div class="difficulty-option" data-level="2">普通 (標準)</div>
+        <div class="difficulty-option" data-level="3">困難 (挑戰)</div>
+        <div class="difficulty-option" data-level="4">地獄 (專家)</div>
+        <p style="font-size: 11px; color: #888; margin-top: 10px;">影響敵人血量、傷害、生成率</p>
+    </div>
+    
+    <div id="audio-controls">
+        <div class="audio-label">主音量</div>
+        <input type="range" min="0" max="100" value="70" class="audio-slider" id="master-volume">
+        <div class="audio-label">音效音量</div>
+        <input type="range" min="0" max="100" value="80" class="audio-slider" id="sfx-volume">
+        <div class="audio-label">音樂音量</div>
+        <input type="range" min="0" max="100" value="60" class="audio-slider" id="music-volume">
+        <div style="margin-top: 10px;">
+            <button id="audio-toggle" style="background: #00aa00; color: white; border: none; padding: 5px 10px; cursor: pointer;">音效: 開啟</button>
+        </div>
+    </div>
+    
     <div id="blocker">
         <div style="text-align: center; cursor: pointer;" id="start-btn">
             <h1 style="color:red; font-size:60px; margin:0; text-shadow: 0 0 20px red;">GRAVEYARD PROTOCOL</h1>
@@ -153,6 +197,9 @@
             <div style="border: 1px solid #555; padding: 20px; background: rgba(255,255,255,0.1);">
                 <p>WASD 移動 | 空白鍵 跳躍 | R 換彈 | <b>E 拾取</b></p>
                 <p style="color: #ff5555;">幽靈出沒時，畫面將毫無徵地閃爍不定</p>
+                <p style="color: #00ffff; font-size: 14px; margin-top: 10px;">
+                    <b>新功能:</b> 按 [F1] 顯示難度設定 | [F2] 顯示音效控制
+                </p>
             </div>
         </div>
     </div>
@@ -174,6 +221,17 @@
             score: 0,
             difficultyLevel: 1 
         };
+        
+        // 難度設定
+        const difficultySettings = {
+            1: { name: "簡單", enemyHealth: 0.7, enemyDamage: 0.5, spawnRate: 0.5, bossHealth: 0.7 },
+            2: { name: "普通", enemyHealth: 1.0, enemyDamage: 1.0, spawnRate: 1.0, bossHealth: 1.0 },
+            3: { name: "困難", enemyHealth: 1.5, enemyDamage: 1.5, spawnRate: 1.5, bossHealth: 1.5 },
+            4: { name: "地獄", enemyHealth: 2.0, enemyDamage: 2.0, spawnRate: 2.0, bossHealth: 2.0 }
+        };
+        
+        // 音效系統
+        let audioSystem = null;
 
         let bossState = { active: false, unit: null, nextSpawnScore: 400, count: 0 };
         const velocity = new THREE.Vector3();
@@ -306,20 +364,61 @@
                 this.musicNodes = [];
                 if(this.creepyInterval) clearTimeout(this.creepyInterval);
             },
-            shoot: function(isSuper) { 
-                if(isSuper) {
-                    this.playTone(600, 'sawtooth', 0.1, 0.15, 300); 
-                    this.playNoise(0.05, 0.2); 
+            shoot: function(isSuper) {
+                if (audioSystem && audioSystem.enabled) {
+                    if (isSuper) {
+                        audioSystem.playSound('shoot2', 0.8);
+                    } else {
+                        audioSystem.playSound('shoot', 0.8);
+                    }
                 } else {
-                    this.playTone(150, 'square', 0.2, 0.3, 50); 
-                    this.playNoise(0.1, 0.4); 
+                    if(isSuper) {
+                        this.playTone(600, 'sawtooth', 0.1, 0.15, 300);
+                        this.playNoise(0.05, 0.2);
+                    } else {
+                        this.playTone(150, 'square', 0.2, 0.3, 50);
+                        this.playNoise(0.1, 0.4);
+                    }
                 }
             },
-            empty: function() { this.playTone(800, 'square', 0.05, 0.1); },
-            reload: function() { setTimeout(()=>this.playTone(600,'square',0.1,0.1),0); setTimeout(()=>this.playTone(500,'sine',0.2,0.1),1000); },
-            pickup: function() { this.playTone(400, 'sine', 0.1, 0.2); setTimeout(()=>this.playTone(600,'sine',0.2,0.2), 100); },
-            footstep: function() { this.playNoise(0.05, 0.1, 200); },
-            bossSpawn: function() { this.playTone(50, 'sawtooth', 3, 0.8, 20); this.playNoise(2, 0.5); } 
+            empty: function() {
+                if (audioSystem && audioSystem.enabled) {
+                    audioSystem.playSound('error', 0.6);
+                } else {
+                    this.playTone(800, 'square', 0.05, 0.1);
+                }
+            },
+            reload: function() {
+                if (audioSystem && audioSystem.enabled) {
+                    audioSystem.playSound('reload', 0.7);
+                } else {
+                    setTimeout(()=>this.playTone(600,'square',0.1,0.1),0);
+                    setTimeout(()=>this.playTone(500,'sine',0.2,0.1),1000);
+                }
+            },
+            pickup: function() {
+                if (audioSystem && audioSystem.enabled) {
+                    audioSystem.playSound('pickup', 0.8);
+                } else {
+                    this.playTone(400, 'sine', 0.1, 0.2);
+                    setTimeout(()=>this.playTone(600,'sine',0.2,0.2), 100);
+                }
+            },
+            footstep: function() {
+                if (audioSystem && audioSystem.enabled) {
+                    audioSystem.playSound('step', 0.3);
+                } else {
+                    this.playNoise(0.05, 0.1, 200);
+                }
+            },
+            bossSpawn: function() {
+                if (audioSystem && audioSystem.enabled) {
+                    audioSystem.playSound('boss', 1.0);
+                } else {
+                    this.playTone(50, 'sawtooth', 3, 0.8, 20);
+                    this.playNoise(2, 0.5);
+                }
+            }
         };
 
         function generateTexture(type) {
@@ -409,8 +508,14 @@
             controls = new PointerLockControls(camera, document.body);
             
             const startBtn = document.getElementById('start-btn');
-            startBtn.addEventListener('click', () => { 
-                controls.lock(); 
+            startBtn.addEventListener('click', () => {
+                controls.lock();
+                // 初始化音效系統
+                if (!audioSystem && typeof AudioSystem !== 'undefined') {
+                    audioSystem = new AudioSystem();
+                    audioSystem.init();
+                    audioSystem.preloadSounds();
+                }
                 if(!SoundGen.ctx) SoundGen.init(); else if(SoundGen.ctx.state === 'suspended') SoundGen.ctx.resume();
             });
             controls.addEventListener('lock', () => { blocker.style.display = 'none'; });
@@ -440,6 +545,100 @@
             document.body.appendChild(renderer.domElement);
             
             updateUI();
+            
+            // 初始化音效系統
+            initAudioSystem();
+            
+            // 初始化難度設定
+            initDifficultySettings();
+            
+            // 初始化音效控制
+            initAudioControls();
+            
+            // 添加鍵盤快捷鍵
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'F1') {
+                    e.preventDefault();
+                    const settings = document.getElementById('difficulty-settings');
+                    settings.style.display = settings.style.display === 'block' ? 'none' : 'block';
+                }
+                if (e.code === 'F2') {
+                    e.preventDefault();
+                    const audio = document.getElementById('audio-controls');
+                    audio.style.display = audio.style.display === 'block' ? 'none' : 'block';
+                }
+            });
+        }
+        
+        function initAudioSystem() {
+            if (typeof AudioSystem !== 'undefined') {
+                audioSystem = new AudioSystem();
+                audioSystem.init();
+                audioSystem.preloadSounds();
+                console.log('共用音效系統已載入');
+            } else {
+                console.warn('共用音效系統未找到，使用內建音效');
+            }
+        }
+        
+        function initDifficultySettings() {
+            const options = document.querySelectorAll('.difficulty-option');
+            options.forEach(option => {
+                option.addEventListener('click', () => {
+                    // 移除所有選中狀態
+                    options.forEach(opt => opt.classList.remove('selected'));
+                    // 添加選中狀態
+                    option.classList.add('selected');
+                    // 更新玩家難度
+                    const level = parseInt(option.getAttribute('data-level'));
+                    player.difficultyLevel = level;
+                    console.log(`難度設定為: ${difficultySettings[level].name}`);
+                });
+            });
+        }
+        
+        function initAudioControls() {
+            const masterSlider = document.getElementById('master-volume');
+            const sfxSlider = document.getElementById('sfx-volume');
+            const musicSlider = document.getElementById('music-volume');
+            const toggleBtn = document.getElementById('audio-toggle');
+            
+            if (audioSystem) {
+                // 載入保存的設定
+                audioSystem.loadSettings();
+                
+                // 設定滑桿初始值
+                masterSlider.value = audioSystem.masterVolume * 100;
+                sfxSlider.value = audioSystem.sfxVolume * 100;
+                musicSlider.value = audioSystem.musicVolume * 100;
+                
+                // 更新按鈕文字
+                toggleBtn.textContent = audioSystem.enabled ? '音效: 開啟' : '音效: 關閉';
+                toggleBtn.style.background = audioSystem.enabled ? '#00aa00' : '#aa0000';
+                
+                // 綁定事件
+                masterSlider.addEventListener('input', (e) => {
+                    audioSystem.setMasterVolume(e.target.value / 100);
+                    audioSystem.saveSettings();
+                });
+                
+                sfxSlider.addEventListener('input', (e) => {
+                    audioSystem.setSfxVolume(e.target.value / 100);
+                    audioSystem.saveSettings();
+                });
+                
+                musicSlider.addEventListener('input', (e) => {
+                    audioSystem.setMusicVolume(e.target.value / 100);
+                    audioSystem.saveSettings();
+                });
+                
+                toggleBtn.addEventListener('click', () => {
+                    audioSystem.toggleEnabled();
+                    toggleBtn.textContent = audioSystem.enabled ? '音效: 開啟' : '音效: 關閉';
+                    toggleBtn.style.background = audioSystem.enabled ? '#00aa00' : '#aa0000';
+                    audioSystem.saveSettings();
+                });
+            }
         }
 
         function updateUI() {

@@ -65,6 +65,16 @@ class AudioSystem {
             '2048-new': this.createBeep(800, 0.15, 'triangle'),
             '2048-gameover': this.createBeep(200, 0.5, 'sawtooth'),
             
+            // 3D射擊遊戲音效
+            'shoot': this.createBeep(150, 0.2, 'square'),
+            'shoot2': this.createBeep(600, 0.1, 'sawtooth'),
+            'reload': this.createBeep(600, 0.1, 'square'),
+            'pickup': this.createBeep(400, 0.1, 'sine'),
+            'step': this.createBeep(100, 0.05, 'sine'),
+            'boss': this.createBeep(50, 3.0, 'sawtooth'),
+            'hit': this.createBeep(300, 0.1, 'sine'),
+            'enemy-death': this.createBeep(200, 0.3, 'sawtooth'),
+            
             // 通用音效
             'click': this.createBeep(500, 0.1, 'sine'),
             'hover': this.createBeep(300, 0.05, 'sine'),
